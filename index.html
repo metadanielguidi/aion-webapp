@@ -5,14 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aion - Neuromorphic Core</title>
     <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
         body {
             background-color: #0d0d0d;
             color: #00ffcc;
             font-family: 'Courier New', Courier, monospace;
-            margin: 0;
             display: flex;
             flex-direction: column;
-            height: 100vh;
             overflow: hidden;
             transition: background-color 0.5s;
         }
@@ -21,11 +25,14 @@
             color: #ff0055;
         }
         #topology-canvas {
-            flex-grow: 1;
+            flex: 1 1 auto;
             width: 100%;
+            display: block;
+            min-height: 0; /* Crucial to prevent flexbox layout collapse on initial load */
         }
         #chat-interface {
-            height: 30%;
+            flex: 0 0 30%;
+            box-sizing: border-box; /* Prevents padding from breaking the 30% height */
             border-top: 1px solid #333;
             display: flex;
             flex-direction: column;
