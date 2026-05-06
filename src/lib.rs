@@ -127,7 +127,7 @@ impl SpikingNetwork {
                 // 3. Hebbian STDP (Target back to Source)
                 if learning && self.trace[target] > 0.1 {
                     let increase = self.plast[target] * 15.0 * self.global_dopamine;
-                    self.add_or_update_synapse(target, src, increase);
+                    self.create_synapse(target, src, increase);
                 }
             }
         }
@@ -169,6 +169,11 @@ impl SpikingNetwork {
         5.0 + novelty + gravity
     }
 
+    /// Allow JavaScript to read the voltage of a node to see if it is "thinking" about it
+    pub fn get_voltage(&self, node_index: usize) -> f32 {
+        self.v[node_index]
+    }
+
     pub fn flood_dopamine(&mut self) {
         self.global_dopamine += 15.0;
     }
@@ -177,8 +182,9 @@ impl SpikingNetwork {
         self.v[node_index] += amount;
     }
 
-    /// Internal function to safely update CSR matrix 
-    fn add_or_update_synapse(&mut self, src: usize, dst: usize, weight_delta: f32) {
+    /// Creates or strengthens a directed synapse from a source to a destination node.
+    #[wasm_bindgen]
+    pub fn create_synapse(&mut self, src: usize, dst: usize, weight_delta: f32) {
         let ptr = self.edge_ptrs[src];
         let len = self.edge_lens[src];
 

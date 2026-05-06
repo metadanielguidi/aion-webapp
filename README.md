@@ -1,12 +1,12 @@
 # AION: Spiking Neural Network Matrix
 
-AION is an experimental WebAssembly-based physics matrix and Spiking Neural Network (SNN), written in Rust and interfaced via JavaScript. It acts as an autonomous neural environment that parses text, learns new concepts via a parent-child dopamine loop, and can asynchronously trigger DOM actions (like UI toggles and alerts) based on "Motor Cortex" node spikes.
+AION is an experimental WebAssembly-based physics matrix and Spiking Neural Network (SNN), written in Rust and interfaced via JavaScript. It acts as an autonomous neural environment that parses text, learns new concepts via unsupervised contextual learning, and can asynchronously trigger DOM actions (like UI toggles and alerts) based on "Motor Cortex" node spikes.
 
 ## Architecture
 
 - **Rust SNN Core (`src/lib.rs`)**: A high-performance 1-Million-Node physics matrix utilizing a flat Compressed Sparse Row (CSR) topology. Handles thermodynamic memory decay, Hebbian STDP learning, and quantum neural tunneling.
 - **Web Worker (`worker.js`)**: Runs the Wasm SNN off the main thread. It manages the dictionary of words-to-nodes, runs the REM sleep lifecycle (spontaneous consolidation), and signals spikes back to the UI.
-- **Main Thread (`main.js`)**: Drives the UI, captures user input, displays the dialogue, and fulfills "Parent-Child" definitions by injecting dopamine when the network encounters an unknown concept.
+- **Main Thread (`main.js`)**: Drives the UI, captures user input, renders a real-time 3D projection of the neural clusters, and displays associated thoughts when the network is queried.
 
 ## Prerequisites
 
