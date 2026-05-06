@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aion - Neuromorphic Core</title>
+    <style>
+        body {
+            background-color: #0d0d0d;
+            color: #00ffcc;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.5s;
+        }
+        body.dark-mode {
+            background-color: #000000;
+            color: #ff0055;
+        }
+        #topology-canvas {
+            flex-grow: 1;
+            width: 100%;
+        }
+        #chat-interface {
+            height: 30%;
+            border-top: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+        #chat-log {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        input {
+            background: #1a1a1a;
+            color: #00ffcc;
+            border: 1px solid #333;
+            padding: 10px;
+            font-size: 16px;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="topology-canvas"></canvas>
+    
+    <div id="chat-interface">
+        <div id="chat-log">
+            <div>[AION_SYS]: Organism initialized. Waiting for input.</div>
+        </div>
+        <input type="text" id="chat-input" placeholder="Inject stimulus..." autocomplete="off"/>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# WebAssembly build artifacts (e.g., from wasm-pack)
+/pkg/
+
+# OS and Editor files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+
+# Node/JavaScript tooling (in case you add a dev server or bundler)
+node_modules/
+*.log
+
+# Secrets and Environment variables
+.env
+.env.local
