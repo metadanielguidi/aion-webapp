@@ -4,6 +4,7 @@ let brain;
 let dictionary = new Map(); // Maps words to node indices
 let isIdle = true;
 let idleTimer;
+let wordQueue = [];
 
 // Core Constants mapped from Rust
 const NODE_SYS_ALERT = 0;
@@ -37,21 +38,32 @@ function startREMSleepCycle() {
     }, 1000); // Pulse every 1 second when idle
 }
 
-function processText(text) {
+function processText(text, prepend = false) {
+    const stopWords = new Set(["the", "is", "at", "which", "on", "and", "a"]);
+    const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+    const validWords = words.filter(w => !stopWords.has(w));
+    
+    if (prepend) {
+        wordQueue = [...validWords, ...wordQueue];
+    } else {
+        wordQueue = [...wordQueue, ...validWords];
+    }
+    
+    processQueue();
+}
+
+function processQueue() {
     isIdle = false;
     clearTimeout(idleTimer);
     
-    const stopWords = new Set(["the", "is", "at", "which", "on", "and", "a"]);
-    const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-    
-    for (let word of words) {
-        if (stopWords.has(word)) continue;
+    while (wordQueue.length > 0) {
+        const word = wordQueue.shift();
         
         if (!dictionary.has(word)) {
             dictionary.set(word, nextAvailableNode++);
             // Signal main thread about new concept
             postMessage({ type: 'UNKNOWN_WORD', word });
-            return; // Pause processing for Parent-Child loop
+            return; // Pause processing queue for Parent-Child loop
         }
         
         const nodeIndex = dictionary.get(word);
@@ -76,7 +88,7 @@ self.onmessage = function(e) {
         processText(payload);
     } else if (type === 'DOPAMINE_FLOOD') {
         brain.flood_dopamine();
-        processText(payload); // Resume processing the definition
+        processText(payload, true); // Prepend definition words, then resume original queue
     } else if (type === 'SAVE_MEMORY') {
         // Serialization hook for IndexedDB would go here
     }
