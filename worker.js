@@ -7,6 +7,7 @@ let isIdle = true;
 let idleTimer;
 let wordQueue = [];
 let lastProcessedNode = null;
+let initialQueueSize = 0; // Tracks size for the progress bar
 
 const stopWords = new Set([
     "a", "about", "all", "an", "and", "any", "are", "as", "at", "be", "been", "but", 
@@ -19,7 +20,6 @@ const stopWords = new Set([
     "does", "did", "define", "definition", "explain", "tell", "because", "therefore"
 ]);
 
-// Start the dynamic dictionary at 0 (No hardcoded OS nodes)
 let nextAvailableNode = 0; 
 
 const dbName = "AionOracleDB";
@@ -92,41 +92,45 @@ async function setup() {
     postMessage({ type: 'READY' });
 }
 
-// Spontaneous REM logic consolidation
 function startCognitiveMetabolism() {
     setInterval(() => {
         if (isIdle && nextAvailableNode > 10) {
             let randomNode = Math.floor(Math.random() * nextAvailableNode);
             brain.inject_voltage(randomNode, 2.0);
         }
-        brain.tick(0.1, true); // Continuous thermodynamic decay
+        brain.tick(0.1, true); 
     }, 100);
+}
+
+function extractValidWords(rawStr) {
+    const words = rawStr.toLowerCase().match(/\b\w+\b/g) || [];
+    return words.filter(w => !stopWords.has(w) && w.length > 2);
 }
 
 function processText(text) {
     const oracleMatch = text.toUpperCase().match(/^ORACLE\((\d+)\):(.*)/);
     
     if (oracleMatch) {
-        const horizon = parseInt(oracleMatch[1], 10);
-        const validWords = extractValidWords(oracleMatch[2]);
-        return handleOracle(validWords, horizon);
+        return handleOracle(extractValidWords(oracleMatch[2]), parseInt(oracleMatch[1], 10));
     } 
     else if (text.toUpperCase().startsWith('ORACLE:')) {
-        const validWords = extractValidWords(text.substring(7));
-        return handleOracle(validWords, 500); // Default 500 ticks
+        return handleOracle(extractValidWords(text.substring(7)), 500); 
     }
     else if (text.trim().endsWith('?')) {
         return handleQuery(extractValidWords(text));
     }
 
-    wordQueue = [...wordQueue, ...extractValidWords(text)];
+    const newWords = extractValidWords(text);
+    wordQueue = [...wordQueue, ...newWords];
+    
+    if (initialQueueSize === 0) {
+        initialQueueSize = wordQueue.length;
+    } else {
+        initialQueueSize += newWords.length;
+    }
+    
     lastProcessedNode = null; 
     processQueue();
-}
-
-function extractValidWords(rawStr) {
-    const words = rawStr.toLowerCase().match(/\b\w+\b/g) || [];
-    return words.filter(w => !stopWords.has(w) && w.length > 2);
 }
 
 function handleQuery(words) {
@@ -170,8 +174,12 @@ function processQueue() {
     isIdle = false;
     clearTimeout(idleTimer);
 
-    while (wordQueue.length > 0) {
+    const digestionLimit = 200; // Limit processing to 200 words per chunk to prevent browser freezing
+    let processedThisCycle = 0;
+
+    while (wordQueue.length > 0 && processedThisCycle < digestionLimit) {
         const word = wordQueue.shift();
+        processedThisCycle++;
         
         if (!dictionary.has(word)) {
             const nodeIndex = nextAvailableNode++;
@@ -179,16 +187,13 @@ function processQueue() {
             reverseDictionary.set(nodeIndex, word);
             brain.flood_dopamine(); 
             postMessage({ type: 'NEW_CONCEPT', word });
-        } else {
-            postMessage({ type: 'ACTIVE_CONCEPT', word });
         }
         
         const nodeIndex = dictionary.get(word);
 
         if (lastProcessedNode !== null && lastProcessedNode !== nodeIndex) {
-            // Asymmetrical wiring: AION learns the Arrow of Time
-            brain.create_synapse(lastProcessedNode, nodeIndex, 1.8); // Strong forward causal link
-            brain.create_synapse(nodeIndex, lastProcessedNode, 0.4); // Weak backward contextual link
+            brain.create_synapse(lastProcessedNode, nodeIndex, 1.8); 
+            brain.create_synapse(nodeIndex, lastProcessedNode, 0.4); 
         }
         lastProcessedNode = nodeIndex;
 
@@ -196,10 +201,27 @@ function processQueue() {
         brain.tick(0.016, true);
     }
     
-    idleTimer = setTimeout(() => {
-        isIdle = true;
-        saveMatrix();
-    }, 5000);
+    // Broadcast progress to the UI
+    if (initialQueueSize > 0) {
+        const processed = initialQueueSize - wordQueue.length;
+        const percentage = Math.floor((processed / initialQueueSize) * 100);
+        postMessage({ type: 'DIGESTION_PROGRESS', progress: percentage });
+    }
+    
+    if (wordQueue.length > 0) {
+        // Yield to the main thread, then process the next chunk
+        setTimeout(processQueue, 10);
+    } else {
+        // Digestion fully complete
+        initialQueueSize = 0;
+        postMessage({ type: 'DIGESTION_PROGRESS', progress: 100 });
+        postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Bulk data assimilation complete. Matrix crystallized." });
+        
+        idleTimer = setTimeout(() => {
+            isIdle = true;
+            saveMatrix();
+        }, 5000);
+    }
 }
 
 self.onmessage = function(e) {
@@ -211,6 +233,7 @@ self.onmessage = function(e) {
         dictionary.clear();
         reverseDictionary.clear();
         nextAvailableNode = 0;
+        initialQueueSize = 0;
         const tx = db.transaction('memory', 'readwrite');
         tx.objectStore('memory').clear();
         postMessage({ type: 'MATRIX_WIPED' });

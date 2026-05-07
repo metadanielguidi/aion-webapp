@@ -4,6 +4,10 @@ const chatInput = document.getElementById('chat-input');
 const canvas = document.getElementById('topology-canvas');
 const ctx = canvas.getContext('2d');
 const resetBtn = document.getElementById('reset-btn');
+const uploadBtn = document.getElementById('upload-btn');
+const fileUpload = document.getElementById('file-upload');
+const progressContainer = document.getElementById('progress-container');
+const progressBar = document.getElementById('progress-bar');
 
 function appendMessage(sender, text) {
     const div = document.createElement('div');
@@ -18,8 +22,27 @@ resetBtn.addEventListener('click', () => {
     }
 });
 
+uploadBtn.addEventListener('click', () => {
+    fileUpload.click();
+});
+
+fileUpload.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    appendMessage('AION_SYS', `Initiating bulk ingestion of: ${file.name}...`);
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const text = event.target.result;
+        worker.postMessage({ type: 'INGEST_TEXT', payload: text });
+    };
+    reader.readAsText(file);
+    fileUpload.value = ''; 
+});
+
 worker.onmessage = function(e) {
-    const { type, word, text } = e.data;
+    const { type, word, text, progress } = e.data;
     
     if (type === 'READY') {
         appendMessage('AION_SYS', 'Omniscient Oracle Online. Awaiting temporal data ingestion.');
@@ -27,6 +50,8 @@ worker.onmessage = function(e) {
     else if (type === 'MATRIX_WIPED') {
         nodes.length = 0; 
         nodeMap.clear();
+        progressContainer.style.display = 'none';
+        progressBar.style.width = '0%';
         chatLog.innerHTML = '<div>[AION_SYS]: MATRIX OBLITERATED. Tabula rasa achieved.</div>';
     }
     else if (type === 'NEW_CONCEPT') {
@@ -37,6 +62,15 @@ worker.onmessage = function(e) {
     }
     else if (type === 'AION_RESPONSE') {
         appendMessage('ORACLE', text);
+    }
+    else if (type === 'DIGESTION_PROGRESS') {
+        if (progressContainer.style.display === 'none' && progress < 100) {
+            progressContainer.style.display = 'block';
+        }
+        progressBar.style.width = `${progress}%`;
+        if (progress >= 100) {
+            setTimeout(() => progressContainer.style.display = 'none', 1000);
+        }
     }
 };
 
