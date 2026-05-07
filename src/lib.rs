@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use js_sys::Math;
 
 const RESTING_POTENTIAL: f32 = 0.2;
-const MAX_WEIGHT: f32 = 2.5;
+const MAX_WEIGHT: f32 = 10.0; // INCREASED: Allows for stronger causal bonds
 
 #[wasm_bindgen]
 pub struct SpikingNetwork {
@@ -82,7 +82,8 @@ impl SpikingNetwork {
 
             let ptr = self.edge_ptrs[src];
             let len = self.edge_lens[src];
-            let dilution_factor = f32::max(1.0, (len as f32).powf(0.6));
+            // DECREASED: Weakened the dilution limit so signals survive branching paths
+            let dilution_factor = f32::max(1.0, (len as f32).powf(0.3)); 
 
             for i in 0..len {
                 let idx = ptr + i;
@@ -134,7 +135,8 @@ impl SpikingNetwork {
         for t in 0..ticks {
             if t % 10 == 0 {
                 for &node in inject_nodes {
-                    if (node as usize) < self.num_nodes { sim_v[node as usize] += 2.0; }
+                    // INCREASED: Inject a massive 5.0V spike to force the cascade forward
+                    if (node as usize) < self.num_nodes { sim_v[node as usize] += 5.0; } 
                 }
             }
 
@@ -167,7 +169,8 @@ impl SpikingNetwork {
 
                 let ptr = self.edge_ptrs[src];
                 let len = self.edge_lens[src];
-                let dilution_factor = f32::max(1.0, (len as f32).powf(0.6));
+                // DECREASED DILUTION
+                let dilution_factor = f32::max(1.0, (len as f32).powf(0.3));
 
                 for i in 0..len {
                     let idx = ptr + i;
@@ -186,8 +189,9 @@ impl SpikingNetwork {
         predictions.sort_by(|a, b| b.1.cmp(&a.1));
 
         predictions.into_iter()
-            .take(4)
-            .filter(|&(_, count)| count > 2) 
+            .take(6)
+            // DECREASED FILTER: Allow any node that spiked at least once to be reported
+            .filter(|&(_, count)| count > 0) 
             .map(|(i, _)| i as u32)
             .collect()
     }
