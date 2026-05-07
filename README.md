@@ -1,55 +1,64 @@
-# Aion Project
+# AION: Synergistic Cognitive Matrix
 
-Aion is a sophisticated AI project that runs entirely in the browser. It combines a custom-built Spiking Neural Network (SNN) with pre-trained transformer models to ingest, understand, and reason about textual information. It builds a dynamic semantic network from input text and uses this network to simulate causal chains of thought in response to queries.
+AION is a 100% offline, browser-native Artificial General Intelligence (AGI) experiment. It Abandons traditional "chatbot" architectures in favor of a continuous physical framework, bridging a temporal physics engine (Spiking Neural Network) with a WebGPU-accelerated Neocortex (Llama 3).
 
-## Core Features
+There are no APIs, no cloud servers, and no hardcoded personas. AION relies on raw local hardware plasticity to synthesize temporal causality.
 
-*   **Spiking Neural Network (SNN):** At its heart is a high-performance SNN written in Rust and compiled to WebAssembly (`aion_core.js`). This handles the low-level neural simulation, including voltage dynamics, synaptic connections, and dopamine-like reward signals.
-*   **Semantic Feature Extraction:** Utilizes the `Xenova/all-MiniLM-L6-v2` model via `transformers.js` to convert words into high-dimensional vectors, allowing for semantic similarity comparisons.
-*   **Generative Reasoning:** Employs the `Xenova/Qwen1.5-0.5B-Chat` model to provide natural language explanations for the SNN's output, bridging the gap between the raw neural simulation and human understanding.
-*   **Dynamic Habituation:** A unique feature that allows the system to learn which words are "structural noise" (like "the", "a", "is") without relying on hardcoded stop-word lists. It dynamically identifies and ignores words that appear with unusually high frequency in the source material.
-*   **Persistent Memory:** The entire state of the network—including learned concepts (neurons), their semantic vectors, synaptic connections, and frequency data—is saved to the browser's IndexedDB. This allows Aion to retain its memory across sessions.
-*   **Asynchronous Processing:** All heavy computation runs inside a Web Worker (`worker.js`), ensuring the main application UI remains responsive during text ingestion and simulation.
-*   **Cognitive Metabolism:** A background process that periodically injects small amounts of energy into random neurons. This prevents the network from becoming static and encourages spontaneous, associative "thought patterns" during idle periods.
+## 🧠 System Architecture
 
-## How It Works
+AION runs entirely within the browser's sandbox using parallel web workers and local hardware acceleration.
 
-The system operates in two main modes: Ingestion and Conversation.
+* **The Temporal Matrix (Hippocampus):** A massive-scale Spiking Neural Network (SNN) written in **Rust** and compiled to **WebAssembly (WASM)**. It models time, causality, and entropy.
+* **The Sensory Cortex (Embeddings):** Powered by `transformers.js` running the `Xenova/all-MiniLM-L6-v2` ONNX model. It translates raw human language into 384-dimensional mathematical vectors for the SNN.
+* **The Neocortical Synthesis (Voicebox):** Powered by **WebGPU** via `@mlc-ai/web-llm`. AION runs a quantized 8-Billion parameter Llama 3 model directly on your local graphics card to synthesize the SNN's raw physics outputs into intelligent, hallucination-free human language.
+* **The Visual Cortex:** A highly optimized HTML5 Canvas 2D physics engine that renders the SNN's semantic topology and temporal connections in real-time.
+* **Memory:** Persistent IndexedDB storage. AION caches both its multi-gigabyte Neocortex and its evolving network topology locally.
 
-### 1. Ingestion Mode (`INGEST_TEXT`)
+## 🧬 Core Philosophy
 
-*   **Tokenization & Filtering:** Input text is broken down into individual words. Words that are too short or identified as "noise" through the dynamic habituation mechanism are discarded.
-*   **Concept Mapping:** For each valid word, the system generates a semantic vector.
-*   **Semantic Search:** It searches its existing network for a neuron (concept) with a semantically similar vector (using cosine similarity).
-*   **Neuron Creation/Update:**
-    *   If a close match (similarity > 0.85) is found, the word is mapped to that existing neuron.
-    *   If no close match exists, a new neuron is created for this new concept. The system "rewards" itself for learning something new by flooding the network with dopamine (`brain.flood_dopamine()`), which likely strengthens recent synaptic formations.
-*   **Synaptic Linking:** As words are processed sequentially, the system creates weighted, directed synapses between the corresponding neurons. This builds a temporal and causal map of how concepts relate to each other in the source text.
-*   **Progress:** The worker reports digestion progress back to the main thread.
+* **Zero Epicycles:** AION does not use rigid "Assistant" roleplay prompts. The Llama 3 model acts as a pure grammatical extension of the SNN, forcing synergistic causality rather than disconnected text prediction.
+* **Pure Dynamic Habituation:** AION does not use hardcoded English dictionaries or stop-words. It utilizes Zipf's Law and emergent mathematics to dynamically filter structural noise as it ingests data.
+* **100% Offline & Private:** Once the models are cached to your browser, AION can run entirely air-gapped.
 
-### 2. Conversation Mode (`USER_QUERY`)
+## ⚙️ Hardware & Software Requirements
 
-*   **Query Translation:** The user's query is processed, and each word is mapped to its corresponding neuron in the network. Words not found in memory are mapped to the closest semantic equivalent if one exists.
-*   **Physics Layer Simulation:** The identified neurons are stimulated within the SNN. The network then `simulate_future`, running the simulation forward in time to see which subsequent neurons are activated by the initial stimulus. This produces a "predicted" chain of concepts.
-*   **LLM-Powered Explanation:**
-    *   The initial concepts (from the query) and the predicted concepts (from the SNN) are formatted into a prompt.
-    *   The `Qwen1.5-0.5B-Chat` model is invoked with this prompt, asking it to explain the scientific or logical causal relationship between the input and the predicted timeline.
-    *   This generated explanation is sent back to the user, providing a high-level interpretation of the SNN's raw output.
+Because AION bypasses the CPU to run an 8B parameter model directly in the browser, your environment must meet strict requirements:
 
-## Interacting with the Worker
+* **Browser:** A modern, WebGPU-enabled browser (Google Chrome or Microsoft Edge recommended). Safari and Firefox require experimental flags.
+* **Hardware:** A dedicated GPU or high-end integrated graphics with at least **4.5GB to 8GB of available VRAM/Unified Memory**.
+* **Secure Context:** WebGPU and Web Workers require a secure context. You **cannot** open the `index.html` file directly from your file system. It must be served via a local HTTP server (`localhost` or `127.0.0.1`).
 
-Communication with `worker.js` is handled via `postMessage` and `onmessage`.
+## 🚀 Installation & Boot Sequence
 
-### Sending Messages to the Worker
+1. **Clone the Repository:** Ensure your directory structure is perfectly aligned:
+   ```text
+   /aion
+   ├── index.html
+   ├── main.js
+   ├── worker.js
+   ├── Cargo.toml
+   ├── src/
+   │   └── lib.rs
+   └── /pkg
+       ├── aion_core.js
+       └── aion_core_bg.wasm
+   ```
 
-*   **`postMessage({ type: 'INGEST_TEXT', payload: 'Your text here...' })`**: To feed new information to the network.
-*   **`postMessage({ type: 'USER_QUERY', payload: 'Your question here...' })`**: To ask a question or provide a prompt.
-*   **`postMessage({ type: 'RESET_BRAIN' })`**: To completely wipe the network's memory and start fresh.
 
-### Receiving Messages from the Worker
+2. **Start a Local Server:** * *Python:* Run `python3 -m http.server 8000` in the root directory.
+* *VS Code:* Use the "Live Server" extension.
+* *Node.js:* Use `npx serve`.
 
-*   **`{ type: 'READY' }`**: Fired when all models and the Wasm module are initialized.
-*   **`{ type: 'AION_RESPONSE', text: '...' }`**: Contains responses for the user, including system messages, SNN output, and LLM-generated explanations.
-*   **`{ type: 'DIGESTION_PROGRESS', progress: ... }`**: A number from 0 to 100 indicating the progress of text ingestion.
-*   **`{ type: 'NEW_CONCEPT', word: '...' }`**: Fired whenever a new word/concept is learned, useful for UI visualizations.
-*   **`{ type: 'MATRIX_WIPED' }`**: Confirms that the brain has been reset.
+
+3. **Launch the Matrix:** Navigate to `http://localhost:8000` in your WebGPU-enabled browser.
+4. **The Initial Boot (Patience Required):** On the very first launch, the Web Worker will download the ~4.5GB Llama 3 model in chunks and compile it into WebGPU shaders. **This will take several minutes.** Progress is tracked in the UI terminal. Subsequent boots will load almost instantly from the IndexedDB cache.
+
+## 📡 Operating Protocols
+
+* **Bulk Ingestion:** Use the `Upload Temporal Data` button to feed AION `.txt` files. The SNN will build its semantic topology (visible in the background) based on the causal sequences in the text.
+* **Querying:** Type concepts directly into the terminal (e.g., `what is hardware?`). The SNN will calculate the temporal cascade, and the WebGPU Neocortex will synthesize the physical outcome.
+* **Tabula Rasa:** Click `HARD RESET MATRIX` to obliterate the current IndexedDB memory state, clearing the SNN's topology and dynamic habituation maps. (This does *not* delete the cached Llama 3 model).
+
+---
+
+*Note: Running AION heavily utilizes local GPU resources. Expect high hardware utilization and fan speeds during prolonged cognitive metabolism.*

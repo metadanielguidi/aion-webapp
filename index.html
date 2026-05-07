@@ -3,121 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aion - Omniscient Oracle</title>
+    <title>AION: Cognitive Matrix</title>
     <style>
-        html, body {
-            height: 100vh;
-            width: 100%;
+        /* BASE MATRIX AESTHETIC */
+        body, html {
             margin: 0;
             padding: 0;
-            background-color: #0d0d0d;
-            color: #00ffcc;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            transition: background-color 0.5s;
-        }
-        body.dark-mode {
-            background-color: #000000;
-            color: #ff0055;
-        }
-        #topology-canvas {
-            flex: 1 1 auto;
             width: 100%;
-            display: block;
-            min-height: 0;
-        }
-        #chat-interface {
-            flex: 0 0 30%;
-            height: 30vh;
-            min-height: 0;
-            box-sizing: border-box;
-            border-top: 1px solid #333;
-            display: flex;
-            flex-direction: column;
-            padding: 10px;
-        }
-        #chat-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #333;
-            padding-bottom: 5px;
-            margin-bottom: 5px;
-        }
-        #upload-btn {
-            background: #1a1a1a;
-            color: #00ffcc;
-            border: 1px solid #00ffcc;
-            padding: 5px 10px;
-            cursor: pointer;
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-        #reset-btn {
-            background: #ff0055;
-            color: #fff;
-            border: none;
-            padding: 5px 10px;
-            cursor: pointer;
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold;
-        }
-        #progress-container {
-            display: none;
-            height: 3px;
-            background: #333;
-            width: 100%;
-            margin-bottom: 5px;
-        }
-        #progress-bar {
             height: 100%;
-            width: 0%;
-            background: #00ffcc;
-            transition: width 0.1s linear;
+            background-color: #030303;
+            color: #00ff00;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
         }
-        #chat-log {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            margin-bottom: 10px;
-        }
-        input[type="text"] {
-            flex-shrink: 0;
+
+        /* THE VISUAL CORTEX (Background Canvas) */
+        #visual-cortex {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none; /* Lets clicks pass through to the terminal */
+        }
+
+        /* THE TERMINAL UI */
+        .terminal {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 900px;
+            height: 95vh;
+            margin-top: 2.5vh;
+            display: flex;
+            flex-direction: column;
+            background: rgba(5, 5, 5, 0.85); /* Dark translucent glass */
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+            backdrop-filter: blur(5px);
+            padding: 20px;
             box-sizing: border-box;
-            background: #1a1a1a;
-            color: #00ffcc;
-            border: 1px solid #333;
-            padding: 10px;
-            font-size: 16px;
+        }
+
+        /* CHAT LOG */
+        #chat-box {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid rgba(0, 255, 0, 0.2);
+            background: rgba(0, 0, 0, 0.5);
+            scrollbar-width: thin;
+            scrollbar-color: #00ff00 #001100;
+        }
+
+        /* Custom Scrollbar for Webkit */
+        #chat-box::-webkit-scrollbar { width: 8px; }
+        #chat-box::-webkit-scrollbar-track { background: #001100; }
+        #chat-box::-webkit-scrollbar-thumb { background: #00ff00; }
+
+        /* MESSAGE STYLES */
+        .message {
+            margin-bottom: 12px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            text-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+        }
+        
+        .tag { font-weight: bold; margin-right: 8px; }
+        
+        .user-message { color: #00ccff; text-shadow: 0 0 3px rgba(0, 204, 255, 0.5); }
+        .user-message .tag { color: #00ccff; }
+
+        .oracle-message { color: #00ff00; }
+        .oracle-tag { color: #00ff00; }
+
+        .sys-message { color: #ff9900; text-shadow: 0 0 3px rgba(255, 153, 0, 0.5); }
+        .sys-tag { color: #ff9900; }
+
+        /* CONTROLS (Inputs & Buttons) */
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            background: #001100;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 12px;
+            font-family: inherit;
+            font-size: 14px;
             outline: none;
+            transition: all 0.2s;
+        }
+
+        input[type="text"]:focus {
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.4);
+            background: #001a00;
+        }
+
+        input[type="file"] {
+            display: none; /* Hide default ugly file input */
+        }
+
+        .btn {
+            background: #001100;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 12px 20px;
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);
+        }
+
+        .btn-danger {
+            border-color: #ff3333;
+            color: #ff3333;
+        }
+
+        .btn-danger:hover {
+            background: #ff3333;
+            color: #000;
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.6);
         }
     </style>
 </head>
 <body>
-    <canvas id="topology-canvas"></canvas>
-    
-    <div id="chat-interface">
-        <div id="chat-header">
-            <span style="font-weight: bold; color: #333;">TEMPORAL FORECASTING TERMINAL</span>
-            <div>
-                <input type="file" id="file-upload" accept=".txt" style="display: none;" />
-                <button id="upload-btn">INGEST .TXT DATA</button>
-                <button id="reset-btn">HARD RESET MATRIX</button>
-            </div>
+
+    <canvas id="visual-cortex"></canvas>
+
+    <div class="terminal">
+        <div id="chat-box"></div>
+        
+        <div class="controls">
+            <input type="text" id="chat-input" placeholder="Query the matrix (Press Enter to execute)..." autocomplete="off">
+            
+            <label for="file-upload" class="btn">Upload Temporal Data (.txt)</label>
+            <input type="file" id="file-upload" accept=".txt">
+            
+            <button id="reset-btn" class="btn btn-danger">HARD RESET MATRIX</button>
         </div>
-        <div id="progress-container">
-            <div id="progress-bar"></div>
-        </div>
-        <div id="chat-log">
-            <div>[AION_SYS]: Matrix initializing...</div>
-        </div>
-        <input type="text" id="chat-input" placeholder="Enter your query..." autocomplete="off"/>
     </div>
 
-    <script type="module" src="main.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
