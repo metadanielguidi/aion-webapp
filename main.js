@@ -79,7 +79,8 @@ chatInput.addEventListener('keydown', (e) => {
         const text = chatInput.value;
         appendMessage('USER', text);
         chatInput.value = '';
-        worker.postMessage({ type: 'INGEST_TEXT', payload: text });
+        // Changed from INGEST_TEXT to USER_QUERY
+        worker.postMessage({ type: 'USER_QUERY', payload: text }); 
     }
 });
 

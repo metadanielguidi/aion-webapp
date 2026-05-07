@@ -1,64 +1,55 @@
-# AION: Omniscient Oracle Edition (Temporal Forecasting Engine)
+# Aion Project
 
-AION is an experimental, browser-native Spiking Neural Network (SNN) and temporal forecasting engine. Written in high-performance Rust and compiled to WebAssembly, AION simulates biological neuromorphic physics to ingest historical sequences, crystallize the "Arrow of Time" via asymmetrical Hebbian learning, and forecast emergent future states.
+Aion is a sophisticated AI project that runs entirely in the browser. It combines a custom-built Spiking Neural Network (SNN) with pre-trained transformer models to ingest, understand, and reason about textual information. It builds a dynamic semantic network from input text and uses this network to simulate causal chains of thought in response to queries.
 
-This matrix operates entirely locally, offline, and without relying on transformer architectures or cloud-based LLMs.
+## Core Features
 
-## Core Architecture
+*   **Spiking Neural Network (SNN):** At its heart is a high-performance SNN written in Rust and compiled to WebAssembly (`aion_core.js`). This handles the low-level neural simulation, including voltage dynamics, synaptic connections, and dopamine-like reward signals.
+*   **Semantic Feature Extraction:** Utilizes the `Xenova/all-MiniLM-L6-v2` model via `transformers.js` to convert words into high-dimensional vectors, allowing for semantic similarity comparisons.
+*   **Generative Reasoning:** Employs the `Xenova/Qwen1.5-0.5B-Chat` model to provide natural language explanations for the SNN's output, bridging the gap between the raw neural simulation and human understanding.
+*   **Dynamic Habituation:** A unique feature that allows the system to learn which words are "structural noise" (like "the", "a", "is") without relying on hardcoded stop-word lists. It dynamically identifies and ignores words that appear with unusually high frequency in the source material.
+*   **Persistent Memory:** The entire state of the network—including learned concepts (neurons), their semantic vectors, synaptic connections, and frequency data—is saved to the browser's IndexedDB. This allows Aion to retain its memory across sessions.
+*   **Asynchronous Processing:** All heavy computation runs inside a Web Worker (`worker.js`), ensuring the main application UI remains responsive during text ingestion and simulation.
+*   **Cognitive Metabolism:** A background process that periodically injects small amounts of energy into random neurons. This prevents the network from becoming static and encourages spontaneous, associative "thought patterns" during idle periods.
 
-- **The Physics Matrix (Rust / Wasm):** A 1-Million-Node Compressed Sparse Row (CSR) topology running in WebAssembly. It features Thermodynamic Memory Decay, Quantum-Neural Spiking (thermal noise tunneling), and Energy Dilution cascades.
-- **The Autonomic Nerve (Web Worker):** Runs the cognitive metabolism continuously in the background at 10 FPS. It handles unsupervised temporal logic wiring (Event A causes Event B) and manages the `simulate_future` Oracle Sandbox.
-- **The Visual Cortex (Main Thread):** A 3D WebGL/Canvas projection of the neural clusters, paired with a system terminal for data ingestion and Oracle querying.
-- **Deep Memory (IndexedDB):** The matrix is persistent. The raw C++ memory buffers are serialized and stored directly in the browser's local database.
+## How It Works
 
-## Prerequisites
+The system operates in two main modes: Ingestion and Conversation.
 
-You will need the following tools installed:
-1. Rust & Cargo (`rustup`)
-2. `wasm-pack`
-3. Node.js or Python (for a local HTTP server)
+### 1. Ingestion Mode (`INGEST_TEXT`)
 
-## Building the Matrix
+*   **Tokenization & Filtering:** Input text is broken down into individual words. Words that are too short or identified as "noise" through the dynamic habituation mechanism are discarded.
+*   **Concept Mapping:** For each valid word, the system generates a semantic vector.
+*   **Semantic Search:** It searches its existing network for a neuron (concept) with a semantically similar vector (using cosine similarity).
+*   **Neuron Creation/Update:**
+    *   If a close match (similarity > 0.85) is found, the word is mapped to that existing neuron.
+    *   If no close match exists, a new neuron is created for this new concept. The system "rewards" itself for learning something new by flooding the network with dopamine (`brain.flood_dopamine()`), which likely strengthens recent synaptic formations.
+*   **Synaptic Linking:** As words are processed sequentially, the system creates weighted, directed synapses between the corresponding neurons. This builds a temporal and causal map of how concepts relate to each other in the source text.
+*   **Progress:** The worker reports digestion progress back to the main thread.
 
-To compile the Rust physics engine into WebAssembly, run the following command in the root directory:
+### 2. Conversation Mode (`USER_QUERY`)
 
-```bash
-wasm-pack build --target web
-```
+*   **Query Translation:** The user's query is processed, and each word is mapped to its corresponding neuron in the network. Words not found in memory are mapped to the closest semantic equivalent if one exists.
+*   **Physics Layer Simulation:** The identified neurons are stimulated within the SNN. The network then `simulate_future`, running the simulation forward in time to see which subsequent neurons are activated by the initial stimulus. This produces a "predicted" chain of concepts.
+*   **LLM-Powered Explanation:**
+    *   The initial concepts (from the query) and the predicted concepts (from the SNN) are formatted into a prompt.
+    *   The `Qwen1.5-0.5B-Chat` model is invoked with this prompt, asking it to explain the scientific or logical causal relationship between the input and the predicted timeline.
+    *   This generated explanation is sent back to the user, providing a high-level interpretation of the SNN's raw output.
 
-This generates a `pkg/` directory containing the highly optimized `.wasm` binary and its JavaScript bindings.
+## Interacting with the Worker
 
-## Running the Engine
+Communication with `worker.js` is handled via `postMessage` and `onmessage`.
 
-Because the project relies on ES Modules and Web Workers, it **cannot** be opened simply by double-clicking the `index.html` file (due to CORS restrictions on `file://` protocols). You must serve the directory using a local HTTP server.
+### Sending Messages to the Worker
 
-**Using Python 3 (Easiest):**
-```bash
-python -m http.server 8000
-```
-Then navigate to `http://localhost:8000` in your browser.
+*   **`postMessage({ type: 'INGEST_TEXT', payload: 'Your text here...' })`**: To feed new information to the network.
+*   **`postMessage({ type: 'USER_QUERY', payload: 'Your question here...' })`**: To ask a question or provide a prompt.
+*   **`postMessage({ type: 'RESET_BRAIN' })`**: To completely wipe the network's memory and start fresh.
 
-> **⚠️ CRITICAL FIRST BOOT STEP:**
-> Upon loading the UI for the very first time, you **must** click the **HARD RESET MATRIX** button in the top right. This purges any old structural offsets from IndexedDB and initializes the pure 0-indexed vocabulary foundation.
+### Receiving Messages from the Worker
 
-## Operating the Oracle
-
-AION learns by establishing asymmetrical causal bonds. It assumes text fed to it sequentially implies causality. 
-
-### 1. Bulk Data Ingestion
-Use the **INGEST .TXT DATA** button to upload text files containing historical events, market timelines, or Wikipedia excerpts. AION utilizes an asynchronous Web Worker loop to digest massive files in background chunks (preventing UI freezing) while updating a visual progress bar. 
-
-### 2. Querying the Sandbox
-Once causality is established, you can ask AION to simulate the future. The Oracle clones the brain into a read-only sandbox, injects your variables, and fast-forwards time to observe what downstream nodes inevitably spike.
-
-* **Syntax:** `ORACLE: [variable]` (Defaults to a 500-tick future projection)
-* **Syntax:** `ORACLE(ticks): [variable]` (Custom time horizon projection)
-
-*Example:* `ORACLE(1000): drought`
-*Response:* `[PROJECTION T+1000]: Causal trajectory strongly indicates emergent states: ⚡ crops ⚡ failures ⚡ prices ⚡ inflation`
-
-## Features & Biological Quirks
-
-- **Thermodynamic Decay:** The matrix is subjected to constant entropy. Concepts that are rarely reinforced will slowly physically erode, ensuring the network does not bloat with grammatical noise.
-- **Cognitive Metabolism:** When idle, the Autonomic Nerve spontaneously fires REM sleep cascades, allowing the matrix to consolidate logic and clear weak contextual links.
-- **Energy Dilution:** To prevent "hub nodes" from causing runaway seizures in the simulation, a node's outbound voltage is mathematically diluted based on its number of connections.
+*   **`{ type: 'READY' }`**: Fired when all models and the Wasm module are initialized.
+*   **`{ type: 'AION_RESPONSE', text: '...' }`**: Contains responses for the user, including system messages, SNN output, and LLM-generated explanations.
+*   **`{ type: 'DIGESTION_PROGRESS', progress: ... }`**: A number from 0 to 100 indicating the progress of text ingestion.
+*   **`{ type: 'NEW_CONCEPT', word: '...' }`**: Fired whenever a new word/concept is learned, useful for UI visualizations.
+*   **`{ type: 'MATRIX_WIPED' }`**: Confirms that the brain has been reset.
