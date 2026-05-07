@@ -228,4 +228,86 @@ impl SpikingNetwork {
             self.edge_caps[src] = new_cap;
         }
     }
+
+    /// --- MEMORY PERSISTENCE EXPORTS ---
+
+    #[wasm_bindgen]
+    pub fn export_v(&self, active_count: usize) -> Vec<f32> {
+        self.v[0..active_count].to_vec()
+    }
+
+    #[wasm_bindgen]
+    pub fn import_v(&mut self, data: &[f32]) {
+        for (i, &val) in data.iter().enumerate() {
+            if i < self.num_nodes { self.v[i] = val; }
+        }
+    }
+
+    // Export/Import the CSR Pointers (Where a node's connections start)
+    #[wasm_bindgen]
+    pub fn export_edge_ptrs(&self, active_count: usize) -> Vec<u32> {
+        self.edge_ptrs[0..active_count].iter().map(|&x| x as u32).collect()
+    }
+
+    #[wasm_bindgen]
+    pub fn import_edge_ptrs(&mut self, data: &[u32]) {
+        for (i, &val) in data.iter().enumerate() {
+            if i < self.num_nodes { self.edge_ptrs[i] = val as usize; }
+        }
+    }
+
+    // Export/Import the CSR Lengths (How many connections a node has)
+    #[wasm_bindgen]
+    pub fn export_edge_lens(&self, active_count: usize) -> Vec<u32> {
+        self.edge_lens[0..active_count].iter().map(|&x| x as u32).collect()
+    }
+
+    #[wasm_bindgen]
+    pub fn import_edge_lens(&mut self, data: &[u32]) {
+        for (i, &val) in data.iter().enumerate() {
+            if i < self.num_nodes { self.edge_lens[i] = val as usize; }
+        }
+    }
+
+    // For the actual destinations and weights, we need the maximum pointer used
+    #[wasm_bindgen]
+    pub fn get_max_edge_index(&self, active_count: usize) -> usize {
+        let mut max_idx = 0;
+        for i in 0..active_count {
+            let end_idx = self.edge_ptrs[i] + self.edge_lens[i];
+            if end_idx > max_idx { max_idx = end_idx; }
+        }
+        max_idx
+    }
+
+    #[wasm_bindgen]
+    pub fn export_edge_dst(&self, max_idx: usize) -> Vec<u32> {
+        self.edge_dst[0..max_idx].iter().map(|&x| x as u32).collect()
+    }
+
+    #[wasm_bindgen]
+    pub fn import_edge_dst(&mut self, data: &[u32]) {
+        // Ensure capacity
+        if data.len() > self.edge_dst.len() {
+            self.edge_dst.resize(data.len(), 0);
+        }
+        for (i, &val) in data.iter().enumerate() {
+            self.edge_dst[i] = val as usize;
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn export_edge_weight(&self, max_idx: usize) -> Vec<f32> {
+        self.edge_weight[0..max_idx].to_vec()
+    }
+
+    #[wasm_bindgen]
+    pub fn import_edge_weight(&mut self, data: &[f32]) {
+        if data.len() > self.edge_weight.len() {
+            self.edge_weight.resize(data.len(), 0.0);
+        }
+        for (i, &val) in data.iter().enumerate() {
+            self.edge_weight[i] = val;
+        }
+    }
 }

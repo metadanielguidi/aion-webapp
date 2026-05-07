@@ -46,12 +46,73 @@ function initDB() {
     });
 }
 
+async function saveMatrix() {
+    if (!brain || nextAvailableNode <= 2) return;
+
+    // 1. Extract raw binary arrays from WebAssembly (only the active nodes to save space)
+    const activeCount = nextAvailableNode;
+    const maxEdgeIdx = brain.get_max_edge_index(activeCount);
+
+    const memoryState = {
+        dictionary: Array.from(dictionary.entries()),
+        reverseDictionary: Array.from(reverseDictionary.entries()),
+        nextAvailableNode: nextAvailableNode,
+        
+        // Raw typed arrays from Rust
+        v: brain.export_v(activeCount),
+        edge_ptrs: brain.export_edge_ptrs(activeCount),
+        edge_lens: brain.export_edge_lens(activeCount),
+        edge_dst: brain.export_edge_dst(maxEdgeIdx),
+        edge_weight: brain.export_edge_weight(maxEdgeIdx)
+    };
+
+    // 2. Save to IndexedDB
+    const tx = db.transaction('memory', 'readwrite');
+    tx.objectStore('memory').put(memoryState, 'latest_state');
+    
+    tx.oncomplete = () => console.log("[AION] Matrix crystallized to disk.");
+}
+
+async function loadMatrix() {
+    return new Promise((resolve) => {
+        const tx = db.transaction('memory', 'readonly');
+        const request = tx.objectStore('memory').get('latest_state');
+        
+        request.onsuccess = (e) => {
+            const state = e.target.result;
+            if (state) {
+                // Restore JS Dictionaries
+                dictionary = new Map(state.dictionary);
+                reverseDictionary = new Map(state.reverseDictionary);
+                nextAvailableNode = state.nextAvailableNode;
+
+                // Restore Rust Wasm State
+                brain.import_v(state.v);
+                brain.import_edge_ptrs(state.edge_ptrs);
+                brain.import_edge_lens(state.edge_lens);
+                brain.import_edge_dst(state.edge_dst);
+                brain.import_edge_weight(state.edge_weight);
+                
+                postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Deep memory restored from disk." });
+                
+                // Tell the UI to render the loaded nodes
+                for (let i = 2; i < nextAvailableNode; i++) {
+                    postMessage({ type: 'NEW_CONCEPT', word: reverseDictionary.get(i) });
+                }
+            }
+            resolve();
+        };
+        request.onerror = () => resolve(); // If no save exists, just resolve and start fresh
+    });
+}
+
 async function setup() {
     await init();
     await initDB();
     
     // Boot the 1-Million-Node Matrix
     brain = new SpikingNetwork(1_000_000);
+    await loadMatrix();
     
     // Hardcode core action nodes
     dictionary.set("[NODE_SYS_ALERT]", NODE_SYS_ALERT);
@@ -162,7 +223,10 @@ function processQueue() {
         }
     }
     
-    idleTimer = setTimeout(() => isIdle = true, 5000);
+    idleTimer = setTimeout(() => {
+        isIdle = true;
+        saveMatrix();
+    }, 5000);
 }
 
 // --- MESSAGE HANDLER ---
