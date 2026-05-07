@@ -3,6 +3,7 @@ const chatLog = document.getElementById('chat-log');
 const chatInput = document.getElementById('chat-input');
 const canvas = document.getElementById('topology-canvas');
 const ctx = canvas.getContext('2d');
+const resetBtn = document.getElementById('reset-btn');
 
 function appendMessage(sender, text) {
     const div = document.createElement('div');
@@ -11,12 +12,25 @@ function appendMessage(sender, text) {
     chatLog.scrollTop = chatLog.scrollHeight;
 }
 
+// Trigger the reset
+resetBtn.addEventListener('click', () => {
+    if (confirm("WARNING: This will obliterate the entire physical matrix and all learned concepts. Proceed?")) {
+        worker.postMessage({ type: 'RESET_BRAIN' });
+    }
+});
+
 worker.onmessage = function(e) {
     const { type, word, actions, text } = e.data;
     
     if (type === 'READY') {
         appendMessage('AION_SYS', 'WebAssembly physics matrix online. REM sleep active.');
     } 
+    else if (type === 'MATRIX_WIPED') {
+        // Obliterate the visual 3D topology
+        nodes.length = 0; 
+        nodeMap.clear();
+        chatLog.innerHTML = '<div>[AION_SYS]: MATRIX OBLITERATED. Tabula rasa achieved.</div>';
+    }
     else if (type === 'NEW_CONCEPT') {
         appendMessage('AION_SYS', `Novel stimuli detected. Wiring new neural cluster for: "${word}"`);
         addNode(word);

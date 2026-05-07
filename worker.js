@@ -1,86 +1,112 @@
 import init, { SpikingNetwork } from './pkg/aion_core.js';
 
 let brain;
-let dictionary = new Map(); // Maps words to node indices
-let reverseDictionary = new Map(); // Maps node indices back to words
+let dictionary = new Map();
+let reverseDictionary = new Map();
 let isIdle = true;
 let idleTimer;
 let wordQueue = [];
-let lastProcessedNode = null; // Tracks sequential context
+let lastProcessedNode = null;
 
-// Core Constants mapped from Rust
+// Expanded Python Stop Words Filter
+const stopWords = new Set([
+    "a", "about", "all", "an", "and", "any", "are", "as", "at", "be", "been", "but", 
+    "by", "can", "could", "do", "for", "from", "has", "have", "how", "i", "if", 
+    "in", "into", "is", "it", "its", "just", "may", "me", "more", "my", "no", "not", 
+    "of", "on", "one", "only", "or", "our", "out", "should", "so", "some", "such", 
+    "than", "that", "the", "their", "them", "then", "there", "these", "they", 
+    "this", "those", "through", "to", "too", "very", "was", "we", "were", "what", 
+    "when", "which", "while", "who", "why", "will", "with", "would", "you", "your",
+    "does", "did", "define", "definition", "explain", "tell"
+]);
+
 const NODE_SYS_ALERT = 0;
 const NODE_UI_DARKMODE = 1;
-dictionary.set("[NODE_SYS_ALERT]", NODE_SYS_ALERT);
-dictionary.set("[NODE_UI_DARKMODE]", NODE_UI_DARKMODE);
 
 let nextAvailableNode = 2;
 
+// --- INDEXED DB SETUP ---
+const dbName = "AionMatrixDB";
+let db;
+
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onupgradeneeded = (event) => {
+            db = event.target.result;
+            if (!db.objectStoreNames.contains('memory')) {
+                db.createObjectStore('memory');
+            }
+        };
+        request.onsuccess = (event) => {
+            db = event.target.result;
+            resolve();
+        };
+        request.onerror = (event) => reject(event.target.error);
+    });
+}
+
 async function setup() {
     await init();
-    // Initialize 1 Million Node Matrix
+    await initDB();
+    
+    // Boot the 1-Million-Node Matrix
     brain = new SpikingNetwork(1_000_000);
+    
+    // Hardcode core action nodes
+    dictionary.set("[NODE_SYS_ALERT]", NODE_SYS_ALERT);
+    dictionary.set("[NODE_UI_DARKMODE]", NODE_UI_DARKMODE);
+    reverseDictionary.set(NODE_SYS_ALERT, "[NODE_SYS_ALERT]");
+    reverseDictionary.set(NODE_UI_DARKMODE, "[NODE_UI_DARKMODE]");
+
     startREMSleepCycle();
     postMessage({ type: 'READY' });
 }
 
 function startREMSleepCycle() {
     setInterval(() => {
-        if (!isIdle) return;
-        // REM Sleep: Consolidate Memory via Thermodynamic Decay
+        if (!isIdle || nextAvailableNode <= 2) return;
+        
         for (let i = 0; i < 3; i++) {
             let randomNode = Math.floor(Math.random() * nextAvailableNode);
-            brain.inject_voltage(randomNode, 10.0); // Force spike
+            brain.inject_voltage(randomNode, 10.0); 
         }
-        
-        // Tick 20 cycles for consolidation
         for(let c = 0; c < 20; c++) {
             brain.tick(0.016, true);
         }
-    }, 1000); // Pulse every 1 second when idle
+    }, 1000);
 }
 
-function processText(text, prepend = false) {
-    const stopWords = new Set(["the", "is", "at", "which", "on", "and", "a", "to", "of", "in"]);
+function processText(text) {
     const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-    const validWords = words.filter(w => !stopWords.has(w));
+    const validWords = words.filter(w => !stopWords.has(w) && w.length > 2);
     
-    // Intercept Queries
     if (text.trim().endsWith('?')) {
         handleQuery(validWords);
         return;
     }
 
-    if (prepend) {
-        wordQueue = [...validWords, ...wordQueue];
-    } else {
-        wordQueue = [...wordQueue, ...validWords];
-    }
-    
-    lastProcessedNode = null; // Reset context boundary on new input
+    wordQueue = [...wordQueue, ...validWords];
+    lastProcessedNode = null; 
     processQueue();
 }
 
 function handleQuery(words) {
     const knownWords = words.filter(w => dictionary.has(w));
-    
     if (knownWords.length === 0) {
-        postMessage({ type: 'AION_RESPONSE', text: "*silence* (No known concepts in query)" });
+        postMessage({ type: 'AION_RESPONSE', text: "READOUT: SIGNAL DECAYED. NO LOCAL CONCEPTS FOUND." });
         return;
     }
 
-    // Inject massive voltage into the queried concepts
     knownWords.forEach(w => {
         const nodeIndex = dictionary.get(w);
-        brain.inject_voltage(nodeIndex, 50.0); // Big spike
+        brain.inject_voltage(nodeIndex, 50.0);
     });
 
-    // Let the brain process for a few frames (without learning/dopamine)
     for (let i = 0; i < 5; i++) {
         brain.tick(0.016, false);
     }
 
-    // Read the resulting voltages to see what else "lit up"
     let associations = [];
     for (let i = 2; i < nextAvailableNode; i++) {
         const word = reverseDictionary.get(i);
@@ -89,17 +115,16 @@ function handleQuery(words) {
         }
     }
 
-    // Sort by highest voltage and take the top 3 strongly activated concepts
     associations.sort((a, b) => b.voltage - a.voltage);
     const topConcepts = associations
-        .slice(0, 3)
-        .filter(a => a.voltage > 0.5) // Only include if it actually received current
+        .slice(0, 4)
+        .filter(a => a.voltage > 0.5)
         .map(a => a.word);
 
     if (topConcepts.length > 0) {
-        postMessage({ type: 'AION_RESPONSE', text: topConcepts.join(" ... ") });
+        postMessage({ type: 'AION_RESPONSE', text: `ATTRACTOR FIELD: ${topConcepts.join(" ⚡ ")}` });
     } else {
-        postMessage({ type: 'AION_RESPONSE', text: "*blank stare* (No strong associations)" });
+        postMessage({ type: 'AION_RESPONSE', text: "READOUT: INSUFFICIENT ENERGY TO FORM ATTRACTOR FIELD." });
     }
 }
 
@@ -114,7 +139,7 @@ function processQueue() {
             const nodeIndex = nextAvailableNode++;
             dictionary.set(word, nodeIndex);
             reverseDictionary.set(nodeIndex, word);
-            brain.flood_dopamine(); // Spontaneous dopamine release on novel stimuli
+            brain.flood_dopamine(); 
             postMessage({ type: 'NEW_CONCEPT', word });
         } else {
             postMessage({ type: 'ACTIVE_CONCEPT', word });
@@ -122,19 +147,16 @@ function processQueue() {
         
         const nodeIndex = dictionary.get(word);
 
-        // Contextual Wiring: Create initial physical bridges between sequential words
         if (lastProcessedNode !== null && lastProcessedNode !== nodeIndex) {
-            brain.create_synapse(lastProcessedNode, nodeIndex, 1.5); // Forward link
-            brain.create_synapse(nodeIndex, lastProcessedNode, 1.0); // Reciprocal link
+            brain.create_synapse(lastProcessedNode, nodeIndex, 1.5); 
+            brain.create_synapse(nodeIndex, lastProcessedNode, 1.0); 
         }
         lastProcessedNode = nodeIndex;
 
         const voltage = brain.grade_stimulus(nodeIndex);
         brain.inject_voltage(nodeIndex, voltage);
         
-        // Tick Physics Engine
         const actions = brain.tick(0.016, true);
-        
         if (actions.length > 0) {
             postMessage({ type: 'ACTION_SPIKE', actions: Array.from(actions) });
         }
@@ -143,13 +165,36 @@ function processQueue() {
     idleTimer = setTimeout(() => isIdle = true, 5000);
 }
 
+// --- MESSAGE HANDLER ---
 self.onmessage = function(e) {
     const { type, payload } = e.data;
     
     if (type === 'INGEST_TEXT') {
         processText(payload);
-    } else if (type === 'SAVE_MEMORY') {
-        // Serialization hook for IndexedDB would go here
+    } 
+    else if (type === 'RESET_BRAIN') {
+        // 1. Clear WebAssembly Memory to prevent memory leaks
+        if (brain) {
+            brain.free(); 
+        }
+        
+        // 2. Re-allocate a fresh 1-Million-Node matrix
+        brain = new SpikingNetwork(1_000_000);
+        
+        // 3. Reset local dictionaries
+        dictionary.clear();
+        reverseDictionary.clear();
+        dictionary.set("[NODE_SYS_ALERT]", NODE_SYS_ALERT);
+        dictionary.set("[NODE_UI_DARKMODE]", NODE_UI_DARKMODE);
+        reverseDictionary.set(NODE_SYS_ALERT, "[NODE_SYS_ALERT]");
+        reverseDictionary.set(NODE_UI_DARKMODE, "[NODE_UI_DARKMODE]");
+        nextAvailableNode = 2;
+        
+        // 4. Clear IndexedDB Data
+        const tx = db.transaction('memory', 'readwrite');
+        tx.objectStore('memory').clear();
+        
+        postMessage({ type: 'MATRIX_WIPED' });
     }
 };
 
