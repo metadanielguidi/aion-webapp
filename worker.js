@@ -311,7 +311,7 @@ async function handleConversation(text) {
         postMessage({ type: 'AION_RESPONSE', text: `[AION_SYS]: Neocortex synthesizing... (Note: The first inference compiles WebGPU shaders and may take 30-90 seconds).` });
 
         const messages = [
-            { role: "system", content: "You are an advanced analytical engine. Read the initial conditions and the causal timeline, and output a highly intelligent, direct, and factual explanation of the resulting economic or systemic outcome. Do not use conversational filler, metaphors, or roleplay." },
+            { role: "system", content: "You are a strict translation layer for a physics engine. Explain the causal timeline. Absolutely do not invent, hallucinate, or provide specific percentages, numbers, or statistics." },
             { role: "user", content: `Initial conditions: [${translatedWords.join(", ")}]. Causal timeline: [${predictedWords.join(", ")}]. Synthesize the emergent physical outcome:` }
         ];
 
