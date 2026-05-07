@@ -2,7 +2,7 @@
 name = "aion_core"
 version = "0.1.0"
 edition = "2021"
-description = "Neuromorphic WebAssembly Core for Aion"
+description = "Neuromorphic WebAssembly Core for Aion Forecasting Engine"
 
 [lib]
 crate-type = ["cdylib"]

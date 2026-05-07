@@ -3,15 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aion - Neuromorphic Core</title>
+    <title>Aion - Omniscient Oracle</title>
     <style>
         html, body {
-            height: 100vh; /* Viewport height forces exact window fit */
+            height: 100vh;
             width: 100%;
             margin: 0;
             padding: 0;
-        }
-        body {
             background-color: #0d0d0d;
             color: #00ffcc;
             font-family: 'Courier New', Courier, monospace;
@@ -28,26 +26,43 @@
             flex: 1 1 auto;
             width: 100%;
             display: block;
-            min-height: 0; /* Crucial to prevent flexbox layout collapse on initial load */
+            min-height: 0;
         }
         #chat-interface {
             flex: 0 0 30%;
-            height: 30vh; /* Explicit fallback height */
-            min-height: 0; /* Prevents container from stretching */
-            box-sizing: border-box; /* Prevents padding from breaking the 30% height */
+            height: 30vh;
+            min-height: 0;
+            box-sizing: border-box;
             border-top: 1px solid #333;
             display: flex;
             flex-direction: column;
             padding: 10px;
         }
+        #chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+        #reset-btn {
+            background: #ff0055;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+        }
         #chat-log {
             flex: 1;
-            min-height: 0; /* Absolutely forces flexbox to allow scrolling */
+            min-height: 0;
             overflow-y: auto;
             margin-bottom: 10px;
         }
         input {
-            flex-shrink: 0; /* Prevents the input from being squished */
+            flex-shrink: 0;
             width: 100%;
             box-sizing: border-box;
             background: #1a1a1a;
@@ -63,14 +78,14 @@
     <canvas id="topology-canvas"></canvas>
     
     <div id="chat-interface">
-        <div id="chat-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px;">
-            <span style="font-weight: bold; color: #333;">SYSTEM TERMINAL</span>
-            <button id="reset-btn" style="background: #ff0055; color: #fff; border: none; padding: 5px 10px; cursor: pointer; font-family: 'Courier New', Courier, monospace; font-weight: bold;">HARD RESET MATRIX</button>
+        <div id="chat-header">
+            <span style="font-weight: bold; color: #333;">TEMPORAL FORECASTING TERMINAL</span>
+            <button id="reset-btn">HARD RESET MATRIX</button>
         </div>
         <div id="chat-log">
-            <div>[AION_SYS]: Organism initialized. Waiting for input.</div>
+            <div>[AION_SYS]: Matrix initializing...</div>
         </div>
-        <input type="text" id="chat-input" placeholder="Inject stimulus..." autocomplete="off"/>
+        <input type="text" id="chat-input" placeholder="Inject causality or query ORACLE(ticks): [variables]..." autocomplete="off"/>
     </div>
 
     <script type="module" src="main.js"></script>
