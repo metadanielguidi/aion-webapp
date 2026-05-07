@@ -6,6 +6,7 @@ let reverseDictionary = new Map(); // Maps node indices back to words
 let isIdle = true;
 let idleTimer;
 let wordQueue = [];
+let lastProcessedNode = null; // Tracks sequential context
 
 // Core Constants mapped from Rust
 const NODE_SYS_ALERT = 0;
@@ -56,6 +57,7 @@ function processText(text, prepend = false) {
         wordQueue = [...wordQueue, ...validWords];
     }
     
+    lastProcessedNode = null; // Reset context boundary on new input
     processQueue();
 }
 
@@ -119,6 +121,14 @@ function processQueue() {
         }
         
         const nodeIndex = dictionary.get(word);
+
+        // Contextual Wiring: Create initial physical bridges between sequential words
+        if (lastProcessedNode !== null && lastProcessedNode !== nodeIndex) {
+            brain.create_synapse(lastProcessedNode, nodeIndex, 1.5); // Forward link
+            brain.create_synapse(nodeIndex, lastProcessedNode, 1.0); // Reciprocal link
+        }
+        lastProcessedNode = nodeIndex;
+
         const voltage = brain.grade_stimulus(nodeIndex);
         brain.inject_voltage(nodeIndex, voltage);
         
