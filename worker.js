@@ -49,7 +49,18 @@ function initDB() {
             db = event.target.result;
             if (!db.objectStoreNames.contains('memory')) db.createObjectStore('memory');
         };
-        request.onsuccess = (event) => resolve(db = event.target.result);
+        request.onsuccess = (event) => {
+            db = event.target.result;
+            
+            // THE GHOST FIX: If you refresh, this tells the OLD worker 
+            // to die immediately so the NEW worker can take the database lock.
+            db.onversionchange = () => {
+                db.close();
+                console.log("[SYSTEM]: Old semantic connection severed for refresh.");
+            };
+            
+            resolve(db);
+        };
         request.onerror = (event) => reject(event.target.error);
     });
 }
@@ -149,11 +160,14 @@ async function setup() {
 
 function startCognitiveMetabolism() {
     setInterval(() => {
-        if (isIdle && nextAvailableNode > 10) {
+        // Only pulse if we aren't resetting and have actual concepts
+        if (isIdle && !isProcessingQueue && nextAvailableNode > 10) {
             let randomNode = Math.floor(Math.random() * nextAvailableNode);
             brain.inject_voltage(randomNode, 2.0);
+            
+            // False = fire neurons, but SHIELD synapses from decay
+            brain.tick(0.1, false); 
         }
-        brain.tick(0.1, true); 
     }, 100);
 }
 
@@ -234,8 +248,8 @@ async function processQueueAsync() {
         }
 
         if (lastProcessedNode !== null && lastProcessedNode !== targetNodeIndex) {
-            brain.create_synapse(lastProcessedNode, targetNodeIndex, 1.8); 
-            brain.create_synapse(targetNodeIndex, lastProcessedNode, 0.4); 
+            brain.create_synapse(lastProcessedNode, targetNodeIndex, 25.0); 
+            brain.create_synapse(targetNodeIndex, lastProcessedNode, 5.0); 
         }
         lastProcessedNode = targetNodeIndex;
 
@@ -379,21 +393,34 @@ self.onmessage = function(e) {
         }
         processText(payload);
     }
-    else if (type === 'RESET_BRAIN') {
+   else if (type === 'RESET_BRAIN') {
         if (!isReady) return;
+
+        // 1. KILL THE GHOSTS: Stop all background saves and metabolism
+        clearTimeout(idleTimer);
+        isProcessingQueue = false;
+        wordQueue = [];
+
+        // 2. WIPE THE RAM
         if (brain) brain.free(); 
         brain = new SpikingNetwork(1_000_000);
         dictionary.clear();
         reverseDictionary.clear();
         nodeVectors.clear();
         wordFrequencies.clear();
-        wordQueue = [];
         totalWordsIngested = 0;
         nextAvailableNode = 0;
         initialQueueSize = 0;
+
+        // 3. WIPE THE DISK (Atomic)
         const tx = db.transaction('memory', 'readwrite');
-        tx.objectStore('memory').clear();
-        postMessage({ type: 'MATRIX_WIPED' });
+        const store = tx.objectStore('memory');
+        store.clear();
+
+        tx.oncomplete = () => {
+            console.log("[SYSTEM]: Tabula Rasa achieved. Matrix is pure.");
+            postMessage({ type: 'MATRIX_WIPED' });
+        };
     }
 };
 

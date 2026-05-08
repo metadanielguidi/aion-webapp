@@ -100,29 +100,32 @@ impl SpikingNetwork {
             }
         }
 
-        for i in 0..self.num_nodes {
-            let ptr = self.edge_ptrs[i];
-            let mut len = self.edge_lens[i];
-            let mut j = 0;
-            
-            while j < len {
-                let idx = ptr + j;
-                let mut w = self.edge_weight[idx];
-                
-                // GENTLE DECAY: Stop starving the matrix. Let the memories persist.
-                w -= w * 0.001 * dt; 
-                
-                if w <= 0.0 {
-                    let last_idx = ptr + len - 1;
-                    self.edge_dst[idx] = self.edge_dst[last_idx];
-                    self.edge_weight[idx] = self.edge_weight[last_idx];
-                    len -= 1;
-                } else {
-                    self.edge_weight[idx] = w;
-                    j += 1;
+        // --- SYNAPTIC SHIELDING ---
+        // Weights only decay during active ingestion (when learning is true).
+        if learning {
+            for i in 0..self.num_nodes {
+                let ptr = self.edge_ptrs[i];
+                let mut len = self.edge_lens[i];
+                let mut j = 0;
+                while j < len {
+                    let idx = ptr + j;
+                    let mut w = self.edge_weight[idx];
+                    
+                    // The entropy only bites when the brain is actively learning.
+                    w -= w * 0.001 * dt; 
+                    
+                    if w <= 0.0 {
+                        let last_idx = ptr + len - 1;
+                        self.edge_dst[idx] = self.edge_dst[last_idx];
+                        self.edge_weight[idx] = self.edge_weight[last_idx];
+                        len -= 1;
+                    } else {
+                        self.edge_weight[idx] = w;
+                        j += 1;
+                    }
                 }
+                self.edge_lens[i] = len;
             }
-            self.edge_lens[i] = len;
         }
     }
 
@@ -176,7 +179,7 @@ impl SpikingNetwork {
                 // THE DISPERSION LAW: 
                 // "And" has 2000 edges. 2000^0.85 = 638. Its voltage is crushed.
                 // "Physics" has 30 edges. 30^0.85 = 18. Its voltage successfully triggers the target.
-                let dispersion_factor = f32::max(1.0, (len as f32).powf(0.85));
+                let dispersion_factor = f32::max(1.0, (len as f32).powf(0.45));
 
                 for i in 0..len {
                     let idx = ptr + i;
@@ -193,11 +196,25 @@ impl SpikingNetwork {
             .filter(|(i, _)| !inject_nodes.contains(&(*i as u32)))
             .collect();
         
-        predictions.sort_by(|a, b| b.1.cmp(&a.1));
+        // THE SEMANTIC SORTING FILTER:
+        // This is where "True Intelligence" emerges. 
+        // We divide raw spike counts by the node's total connection count (edge_lens).
+        // A node that spikes 100 times but has 2000 connections ("the") gets a low score.
+        // A node that spikes 10 times but has only 15 connections ("matter") gets a massive score.
+        predictions.sort_by(|a, b| {
+            let len_a = self.edge_lens[a.0] as f32;
+            let len_b = self.edge_lens[b.0] as f32;
+            
+            // The 0.8 exponent is the "Intelligence Constant":
+            // It determines how aggressively the system ignores structural noise.
+            let score_a = (a.1 as f32) / f32::max(1.0, len_a.powf(0.8));
+            let score_b = (b.1 as f32) / f32::max(1.0, len_b.powf(0.8));
+            
+            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         predictions.into_iter()
-            .take(6)
-            // DECREASED FILTER: Allow any node that spiked at least once to be reported
+            .take(6) // Only the 6 most "intelligent" concepts survive
             .filter(|&(_, count)| count > 0) 
             .map(|(i, _)| i as u32)
             .collect()
