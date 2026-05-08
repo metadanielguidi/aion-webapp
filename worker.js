@@ -24,7 +24,7 @@ const SEMANTIC_THRESHOLD = 0.85;
 // PURE DYNAMIC HABITUATION
 let wordFrequencies = new Map();
 let totalWordsIngested = 0;
-const HABITUATION_THRESHOLD = 0.04; 
+const HABITUATION_THRESHOLD = 0.05; 
 const GRACE_PERIOD = 20; 
 
 let nextAvailableNode = 0; 
@@ -314,17 +314,20 @@ async function handleConversation(text) {
         
         let relationalString = "";
         
-        // 4. Translate the flat Float32Array into structural verbs
+        // 4. Translate the flat Float32Array into high-resolution structural verbs
         for (let i = 0; i < topologyData.length; i += 3) {
             const srcWord = reverseDictionary.get(topologyData[i]);
             const dstWord = reverseDictionary.get(topologyData[i+1]);
             const weight = topologyData[i+2];
             
-            // Map the physical weight to a strict verb
+            // EXPANDED 150.0 SCALE GRADIENT
             let verb = "connects_to";
-            if (weight > 5.0) verb = "forces";
-            else if (weight > 2.0) verb = "drives";
-            else if (weight > 0.5) verb = "influences";
+            if (weight >= 135.0) verb = "dictates";
+            else if (weight > 100.0) verb = "forces";
+            else if (weight > 70.0) verb = "drives";
+            else if (weight > 40.0) verb = "generates";
+            else if (weight > 15.0) verb = "influences";
+            else if (weight > 2.0) verb = "interacts_with";
             
             relationalString += `[${srcWord}(${verb})${dstWord}] `;
         }

@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use js_sys::Math;
 
 const RESTING_POTENTIAL: f32 = 0.2;
-const MAX_WEIGHT: f32 = 10.0; // INCREASED: Allows for stronger causal bonds
+const MAX_WEIGHT: f32 = 150.0; // INCREASED: Allows for stronger causal bonds
 
 #[wasm_bindgen]
 pub struct SpikingNetwork {
@@ -78,11 +78,12 @@ impl SpikingNetwork {
         for &src in &spikes {
             self.trace[src] = 1.0;
             self.v[src] = RESTING_POTENTIAL;
-            self.fatigue[src] += 0.1;
+            
+            // INCREASED FATIGUE: Exhuasts the node so it can't get trapped in an infinite echo chamber
+            self.fatigue[src] += 2.5; 
 
             let ptr = self.edge_ptrs[src];
             let len = self.edge_lens[src];
-            // DECREASED: Weakened the dilution limit so signals survive branching paths
             let dilution_factor = f32::max(1.0, (len as f32).powf(0.3)); 
 
             for i in 0..len {
@@ -93,7 +94,7 @@ impl SpikingNetwork {
                 self.v[target] += weight / dilution_factor;
 
                 if learning && self.trace[target] > 0.1 {
-                    let increase = self.plast[target] * 15.0 * self.global_dopamine;
+                    let increase = self.plast[target] * 25.0 * self.global_dopamine;
                     self.create_synapse(target, src, increase);
                 }
             }
@@ -107,7 +108,10 @@ impl SpikingNetwork {
             while j < len {
                 let idx = ptr + j;
                 let mut w = self.edge_weight[idx];
-                w -= 0.02 * f32::exp(-w) * dt;
+                
+                // ACTIVE ENTROPY: The heavier the bond, the faster it decays without continuous reinforcement.
+                // This bleeds energy from structural grammar words so they can't dominate the matrix.
+                w -= (0.001 + (w * 0.01)) * dt; 
                 
                 if w <= 0.0 {
                     let last_idx = ptr + len - 1;
@@ -165,7 +169,7 @@ impl SpikingNetwork {
             for &src in &spikes {
                 sim_trace[src] = 1.0;
                 sim_v[src] = RESTING_POTENTIAL;
-                sim_fatigue[src] += 0.1;
+                sim_fatigue[src] += 5.0;
 
                 let ptr = self.edge_ptrs[src];
                 let len = self.edge_lens[src];
@@ -212,20 +216,27 @@ impl SpikingNetwork {
         let ptr = self.edge_ptrs[src];
         let len = self.edge_lens[src];
 
+        // THE PURE PHYSICS FILTER: Synaptic Dilution
+        // A node with 100 connections ("are") suffers a massive penalty. 
+        // A node with 4 connections ("quantum") retains its strength.
+        let promiscuity_penalty = f32::max(1.0, (len as f32).powf(0.5)); 
+        let adjusted_delta = weight_delta / promiscuity_penalty;
+
         for i in 0..len {
             let idx = ptr + i;
             if self.edge_dst[idx] == dst {
-                self.edge_weight[idx] = f32::min(MAX_WEIGHT, self.edge_weight[idx] + weight_delta);
+                // Apply the mathematically diluted weight
+                self.edge_weight[idx] = f32::min(MAX_WEIGHT, self.edge_weight[idx] + adjusted_delta);
                 return;
             }
         }
 
-        if weight_delta <= 0.0 { return; }
+        if adjusted_delta <= 0.0 { return; }
 
         if len < self.edge_caps[src] {
             let idx = ptr + len;
             self.edge_dst[idx] = dst;
-            self.edge_weight[idx] = weight_delta;
+            self.edge_weight[idx] = adjusted_delta; // Use adjusted delta for new synapses too
             self.edge_lens[src] += 1;
         } else {
             let new_ptr = self.edge_dst.len();
@@ -235,7 +246,7 @@ impl SpikingNetwork {
                 self.edge_weight.push(self.edge_weight[ptr + i]);
             }
             self.edge_dst.push(dst);
-            self.edge_weight.push(weight_delta);
+            self.edge_weight.push(adjusted_delta); // Use adjusted delta here too
             for _ in (len + 1)..new_cap {
                 self.edge_dst.push(0);
                 self.edge_weight.push(0.0);
@@ -276,8 +287,9 @@ impl SpikingNetwork {
     #[wasm_bindgen]
     pub fn get_causal_topology(&self, active_nodes: &[u32]) -> Vec<f32> {
         let mut topology = Vec::new();
+        // The Forward-Time Lock: Tracks nodes that have already been pulled into the future
+        let mut consumed_targets = std::collections::HashSet::new();
         
-        // For every active node, find its strongest connection to the other active nodes
         for &src in active_nodes {
             let src_idx = src as usize;
             let ptr = self.edge_ptrs[src_idx];
@@ -291,18 +303,26 @@ impl SpikingNetwork {
                 let target = self.edge_dst[idx];
                 let weight = self.edge_weight[idx];
                 
-                // Only map synapses that connect to other nodes in the active timeline
-                if active_nodes.contains(&(target as u32)) && weight > best_weight {
-                    best_weight = weight;
-                    best_target = target;
+                // THE HIGH-PASS FILTER:
+                // Only extract the topology if the synaptic weight is overwhelmingly strong (> 20.0).
+                // "And" will have thousands of weak 2.0 bonds. "Physics" will have a few massive 80.0 bonds.
+                if active_nodes.contains(&(target as u32)) && weight > best_weight && weight > 20.0 {
+                    if !consumed_targets.contains(&target) && target != src_idx {
+                        best_weight = weight;
+                        best_target = target;
+                    }
                 }
             }
             
-            if best_weight > 0.0 && best_target != src_idx {
-                // Export as flat array: [Source ID, Target ID, Weight]
+            if best_weight > 0.0 {
                 topology.push(src as f32);
                 topology.push(best_target as f32);
                 topology.push(best_weight);
+                
+                // Permanently lock this target so no other node can loop back to it
+                consumed_targets.insert(best_target);
+                // Lock the source as well to force the voltage strictly outward
+                consumed_targets.insert(src_idx);
             }
         }
         
