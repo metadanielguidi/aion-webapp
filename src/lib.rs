@@ -7,6 +7,7 @@ const MAX_WEIGHT: f32 = 150.0; // INCREASED: Allows for stronger causal bonds
 #[wasm_bindgen]
 pub struct SpikingNetwork {
     pub num_nodes: usize,
+    pub num_active_nodes: usize, // <--- Added to track ingested concepts
     v: Vec<f32>,
     trace: Vec<f32>,
     leak: Vec<f32>,
@@ -40,6 +41,7 @@ impl SpikingNetwork {
 
         Self {
             num_nodes,
+            num_active_nodes: 0, // <--- Initialize to zero
             v: vec![RESTING_POTENTIAL; num_nodes],
             trace: vec![0.0; num_nodes],
             leak, plast,
@@ -53,11 +55,17 @@ impl SpikingNetwork {
         }
     }
 
+    #[wasm_bindgen]
+    pub fn set_active_count(&mut self, count: usize) {
+        self.num_active_nodes = count;
+    }
+
     pub fn tick(&mut self, dt: f32, learning: bool) {
         self.global_dopamine += (1.0 - self.global_dopamine) * 0.05 * dt;
         let mut spikes = Vec::new();
 
-        for i in 0..self.num_nodes {
+        // OPTIMIZED: Only process active nodes
+        for i in 0..self.num_active_nodes {
             self.fatigue[i] *= 1.0 - (0.05 * dt);
             self.v[i] += (RESTING_POTENTIAL - self.v[i]) * self.leak[i] * dt;
             self.trace[i] = f32::max(0.0, self.trace[i] - self.leak[i] * 0.8 * dt);
@@ -90,7 +98,6 @@ impl SpikingNetwork {
                 let idx = ptr + i;
                 let target = self.edge_dst[idx];
                 let weight = self.edge_weight[idx];
-
                 self.v[target] += weight / dilution_factor;
 
                 if learning && self.trace[target] > 0.1 {
@@ -100,18 +107,15 @@ impl SpikingNetwork {
             }
         }
 
-        // --- SYNAPTIC SHIELDING ---
-        // Weights only decay during active ingestion (when learning is true).
+        // OPTIMIZED SYNAPTIC SHIELDING
         if learning {
-            for i in 0..self.num_nodes {
+            for i in 0..self.num_active_nodes {
                 let ptr = self.edge_ptrs[i];
                 let mut len = self.edge_lens[i];
                 let mut j = 0;
                 while j < len {
                     let idx = ptr + j;
                     let mut w = self.edge_weight[idx];
-                    
-                    // The entropy only bites when the brain is actively learning.
                     w -= w * 0.001 * dt; 
                     
                     if w <= 0.0 {
@@ -132,22 +136,23 @@ impl SpikingNetwork {
     /// --- PREDICTIVE CODING (THE ORACLE SANDBOX) ---
     #[wasm_bindgen]
     pub fn simulate_future(&self, inject_nodes: &[u32], ticks: usize) -> Vec<u32> {
-        let mut sim_v = self.v.clone();
-        let mut sim_trace = self.trace.clone();
-        let mut sim_fatigue = self.fatigue.clone();
+        let mut sim_v = vec![RESTING_POTENTIAL; self.num_nodes];
+        let mut sim_trace = vec![0.0; self.num_nodes];
+        let mut sim_fatigue = vec![0.0; self.num_nodes];
         let mut spike_counts = vec![0; self.num_nodes];
         let dt = 0.1;
 
         for t in 0..ticks {
-            if t % 10 == 0 {
+            // OPTIMIZED INJECTION: Pulse strongly a few times to start the cascade, then let the matrix resonate naturally
+            if t == 0 || t == 50 || t == 100 {
                 for &node in inject_nodes {
-                    // INCREASED: Inject a massive 5.0V spike to force the cascade forward
-                    if (node as usize) < self.num_nodes { sim_v[node as usize] += 5.0; } 
+                    if (node as usize) < self.num_active_nodes { sim_v[node as usize] += 15.0; } 
                 }
             }
 
             let mut spikes = Vec::new();
-            for i in 0..self.num_nodes {
+            // OPTIMIZED: Only simulate active nodes
+            for i in 0..self.num_active_nodes {
                 sim_fatigue[i] *= 1.0 - (0.05 * dt);
                 sim_v[i] += (RESTING_POTENTIAL - sim_v[i]) * self.leak[i] * dt;
                 sim_trace[i] = f32::max(0.0, sim_trace[i] - self.leak[i] * 0.8 * dt);
@@ -156,36 +161,24 @@ impl SpikingNetwork {
                 if sim_v[i] > threshold {
                     spikes.push(i);
                     spike_counts[i] += 1;
-                } else {
-                    let distance = threshold - sim_v[i];
-                    if distance < 0.3 {
-                        let prob = f32::exp(-distance * 10.0) * 0.05;
-                        if (Math::random() as f32) < prob { 
-                            spikes.push(i); 
-                            spike_counts[i] += 1; 
-                        }
-                    }
                 }
             }
 
             for &src in &spikes {
                 sim_trace[src] = 1.0;
                 sim_v[src] = RESTING_POTENTIAL;
+                // BALANCED FATIGUE: Allow strong semantic concepts to ring, but prevent infinite runaway noise
                 sim_fatigue[src] += 5.0;
 
                 let ptr = self.edge_ptrs[src];
                 let len = self.edge_lens[src];
-                
-                // THE DISPERSION LAW: 
-                // "And" has 2000 edges. 2000^0.85 = 638. Its voltage is crushed.
-                // "Physics" has 30 edges. 30^0.85 = 18. Its voltage successfully triggers the target.
+
                 let dispersion_factor = f32::max(1.0, (len as f32).powf(0.45));
 
                 for i in 0..len {
                     let idx = ptr + i;
                     let target = self.edge_dst[idx];
                     let weight = self.edge_weight[idx];
-                    
                     sim_v[target] += weight / dispersion_factor;
                 }
             }
@@ -194,27 +187,24 @@ impl SpikingNetwork {
         let mut predictions: Vec<(usize, u32)> = spike_counts.into_iter()
             .enumerate()
             .filter(|(i, _)| !inject_nodes.contains(&(*i as u32)))
+            // MINIMUM STRUCTURAL ANCHOR: A node must have at least 3 connections 
+            // to be considered a stable concept rather than an obscure one-off word.
+            .filter(|(i, _)| self.edge_lens[*i] >= 3)
             .collect();
         
-        // THE SEMANTIC SORTING FILTER:
-        // This is where "True Intelligence" emerges. 
-        // We divide raw spike counts by the node's total connection count (edge_lens).
-        // A node that spikes 100 times but has 2000 connections ("the") gets a low score.
-        // A node that spikes 10 times but has only 15 connections ("matter") gets a massive score.
         predictions.sort_by(|a, b| {
             let len_a = self.edge_lens[a.0] as f32;
             let len_b = self.edge_lens[b.0] as f32;
             
-            // The 0.8 exponent is the "Intelligence Constant":
-            // It determines how aggressively the system ignores structural noise.
-            let score_a = (a.1 as f32) / f32::max(1.0, len_a.powf(0.8));
-            let score_b = (b.1 as f32) / f32::max(1.0, len_b.powf(0.8));
-            
+            // SOFTENED RARE WORD BIAS: Lowered the exponent to 0.2. Moderate core hubs (like "energy" 
+            // or "matter") will no longer be mathematically punished by obscure words like "educator".
+            let score_a = (a.1 as f32) / f32::max(1.0, len_a.powf(0.2));
+            let score_b = (b.1 as f32) / f32::max(1.0, len_b.powf(0.2));
             score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
         });
 
         predictions.into_iter()
-            .take(6) // Only the 6 most "intelligent" concepts survive
+            .take(10) // INCREASED: Expand the emergent future pool for a richer causal topology
             .filter(|&(_, count)| count > 0) 
             .map(|(i, _)| i as u32)
             .collect()
@@ -227,9 +217,15 @@ impl SpikingNetwork {
         5.0 + novelty + gravity
     }
 
-    pub fn get_voltage(&self, node_index: usize) -> f32 { self.v[node_index] }
+    pub fn get_voltage(&self, node_index: usize) -> f32 {
+        if node_index < self.num_active_nodes { self.v[node_index] } else { 0.0 }
+    }
+
     pub fn flood_dopamine(&mut self) { self.global_dopamine += 15.0; }
-    pub fn inject_voltage(&mut self, node_index: usize, amount: f32) { self.v[node_index] += amount; }
+
+    pub fn inject_voltage(&mut self, node_index: usize, amount: f32) {
+        if node_index < self.num_active_nodes { self.v[node_index] += amount; }
+    }
 
     #[wasm_bindgen]
     pub fn create_synapse(&mut self, src: usize, dst: usize, weight_delta: f32) {
@@ -301,18 +297,19 @@ impl SpikingNetwork {
         for (i, &v) in data.iter().enumerate() { self.edge_weight[i] = v; }
     }
     #[wasm_bindgen]
-    pub fn get_causal_topology(&self, active_nodes: &[u32]) -> Vec<f32> {
+    pub fn get_causal_topology(&self, active_nodes: &[u32], inject_nodes: &[u32]) -> Vec<f32> {
         let mut topology = Vec::new();
-        let mut consumed_targets = std::collections::HashSet::new();
+        // Use a 64-bit pair to track undirected edges and prevent redundant A->B and B->A duplication
+        let mut seen_edges = std::collections::HashSet::new();
         
         for &src in active_nodes {
             let src_idx = src as usize;
             let ptr = self.edge_ptrs[src_idx];
             let len = self.edge_lens[src_idx];
             
-            let mut best_target = src_idx;
-            let mut best_weight = 0.0;
-            let mut best_semantic_weight = 0.0;
+            let mut top_targets = Vec::new();
+            
+            let is_input_node = inject_nodes.contains(&src);
             
             for i in 0..len {
                 let idx = ptr + i;
@@ -323,27 +320,44 @@ impl SpikingNetwork {
                 // "And" might have a weight of 150.0, but it has 2000 connections.
                 // "Matter" might have a weight of 45.0, but only 30 connections.
                 let target_len = self.edge_lens[target] as f32;
-                let hub_penalty = f32::max(1.0, target_len.powf(0.7)); 
-                let semantic_weight = weight / hub_penalty;
+                let hub_penalty = f32::max(1.0, target_len.powf(0.4)); // Softened from 0.7 to 0.4
+                let mut semantic_weight = weight / hub_penalty;
                 
-                // We still demand a raw weight > 5.0, but we use the SEMANTIC weight to pick the winner
-                if active_nodes.contains(&(target as u32)) && weight > 5.0 {
-                    if semantic_weight > best_semantic_weight && !consumed_targets.contains(&target) && target != src_idx {
-                        best_semantic_weight = semantic_weight;
-                        best_weight = weight;
-                        best_target = target;
+                // FORCED ANCHORING: If this is the user's input concept, we let it pull its strongest 
+                // physical edge into the topology, even if that target didn't make the top 6 predictions.
+                let is_active_target = active_nodes.contains(&(target as u32));
+                let valid_target = is_active_target || is_input_node;
+                
+                // MINIMUM STRUCTURAL ANCHOR: Prevent the graph from anchoring to 
+                // obscure rare words just because they have a low hub penalty.
+                if self.edge_lens[target] < 3 { continue; }
+
+                if valid_target && weight > 1.0 && target != src_idx {
+                    // PREFERENCE TO ACTIVE GRAPH: Biases the SNN to draw lines between nodes that actually spiked
+                    if is_active_target {
+                        semantic_weight *= 2.0; 
                     }
+                    
+                    top_targets.push((target, weight, semantic_weight));
                 }
             }
             
-            if best_weight > 0.0 {
-                topology.push(src as f32);
-                topology.push(best_target as f32);
-                // We push the raw weight to JS so it still maps to "dictates" or "forces"
-                topology.push(best_weight); 
+            top_targets.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+            
+            // Allow up to 2 top connections per node to build a richer, more complex matrix
+            for (target, weight, _) in top_targets.into_iter().take(2) {
+                let edge_pair = if src_idx < target { 
+                    ((src_idx as u64) << 32) | (target as u64) 
+                } else { 
+                    ((target as u64) << 32) | (src_idx as u64) 
+                };
                 
-                consumed_targets.insert(best_target);
-                consumed_targets.insert(src_idx);
+                if !seen_edges.contains(&edge_pair) {
+                    seen_edges.insert(edge_pair);
+                    topology.push(src as f32);
+                    topology.push(target as f32);
+                    topology.push(weight); 
+                }
             }
         }
         

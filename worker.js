@@ -11,6 +11,7 @@ let engine; // The WebGPU Neocortex
 let isIdle = true;
 let isReady = false;
 let isProcessingQueue = false;
+let isThinking = false;
 let idleTimer;
 let wordQueue = [];
 let lastProcessedNode = null;
@@ -30,6 +31,20 @@ const GRACE_PERIOD = 20;
 let nextAvailableNode = 0; 
 const dbName = "AionOracleDB";
 let db;
+
+// STRUCTURAL NOISE FILTER
+// Stops query words like "what" and "how" from triggering massive hub-spikes
+const STOP_WORDS = new Set([
+    "the", "and", "that", "have", "for", "not", "with", "you", "this", "but", 
+    "his", "from", "they", "say", "her", "she", "will", "one", "all", "would", 
+    "there", "their", "what", "out", "about", "who", "get", "which", "when", 
+    "make", "can", "like", "time", "just", "him", "know", "take", "people", 
+    "into", "year", "your", "good", "some", "could", "them", "see", "other", 
+    "than", "then", "now", "look", "only", "come", "its", "over", "think", 
+    "also", "back", "after", "use", "two", "how", "our", "work", "first", 
+    "well", "way", "even", "new", "want", "because", "any", "these", "give", 
+    "day", "most", "are", "was", "were"
+]);
 
 function cosineSimilarity(vecA, vecB) {
     let dotProduct = 0, normA = 0, normB = 0;
@@ -177,6 +192,7 @@ function extractValidWords(rawStr, isLearning = false) {
 
     for (let w of words) {
         if (w.length <= 2) continue; // Keep the basic 2-letter filter
+        if (STOP_WORDS.has(w)) continue; // Filter out structural noise
 
         if (isLearning) {
             // Keep the counter for your UI progress bar, but stop logging frequencies
@@ -238,6 +254,10 @@ async function processQueueAsync() {
                 targetNodeIndex = bestMatchId;
             } else {
                 targetNodeIndex = nextAvailableNode++;
+                
+                // SYNCHRONIZE: Tell WASM a new node exists
+                brain.set_active_count(nextAvailableNode); 
+                
                 dictionary.set(word, targetNodeIndex);
                 reverseDictionary.set(targetNodeIndex, word);
                 nodeVectors.set(targetNodeIndex, incomingVector); 
@@ -279,14 +299,14 @@ async function processQueueAsync() {
 }
 
 async function handleConversation(text) {
+    isThinking = true;
     const words = extractValidWords(text, false); 
     let nodeIds = [];
-    let translatedWords = [];
+    let mappedMsg = "";
     
     for (let word of words) {
         if (dictionary.has(word)) {
             nodeIds.push(dictionary.get(word));
-            translatedWords.push(word);
         } else {
             const output = await extractor(word, { pooling: 'mean', normalize: true });
             let bestMatchId = null;
@@ -302,13 +322,19 @@ async function handleConversation(text) {
 
             if (highestSimilarity > SEMANTIC_THRESHOLD) {
                 nodeIds.push(bestMatchId);
-                translatedWords.push(reverseDictionary.get(bestMatchId));
+                const matchedWord = reverseDictionary.get(bestMatchId);
+                mappedMsg += `[Mapped '${word}' -> '${matchedWord}'] `;
             }
         }
     }
 
     if (nodeIds.length === 0) {
+        isThinking = false;
         return postMessage({ type: 'AION_RESPONSE', text: "[ORACLE ERROR]: Zero semantic anchors found in memory for that query." });
+    }
+
+    if (mappedMsg !== "") {
+        postMessage({ type: 'AION_RESPONSE', text: `[SYSTEM_NOTE]: ${mappedMsg.trim()}` });
     }
 
     const uintIds = new Uint32Array(nodeIds);
@@ -316,13 +342,13 @@ async function handleConversation(text) {
     // 1. Run the temporal simulation to get the emergent future nodes
     const predictedIds = brain.simulate_future(uintIds, 500);
     
-    if (predictedIds.length > 0) {
-        // 2. Combine the initial concepts and predicted concepts
-        const allActiveIds = new Uint32Array([...uintIds, ...predictedIds]);
-        
-        // 3. Extract the physical edges connecting them using your new Rust method
-        const topologyData = brain.get_causal_topology(allActiveIds);
-        
+    // 2. Combine the initial concepts and predicted concepts
+    const allActiveIds = new Uint32Array([...uintIds, ...predictedIds]);
+    
+    // 3. Extract the physical edges connecting them using your new Rust method
+    const topologyData = brain.get_causal_topology(allActiveIds, uintIds);
+    
+    if (topologyData.length > 0) {
         let relationalString = "";
         
         // 4. Translate the flat Float32Array into high-resolution structural verbs
@@ -374,8 +400,15 @@ async function handleConversation(text) {
         }
 
     } else {
-        postMessage({ type: 'AION_RESPONSE', text: `[AION]: The causal energy decays into entropy. No clear future state found.` });
+        if (predictedIds.length > 0) {
+            const futures = Array.from(predictedIds).map(id => reverseDictionary.get(id)).join(", ");
+            postMessage({ type: 'AION_RESPONSE', text: `[AION]: Concepts resonate with [${futures}], but their causal bonds are too weak to form a definitive physical topology.` });
+        } else {
+            postMessage({ type: 'AION_RESPONSE', text: `[AION]: The causal energy decays into entropy. No definitive future state or structural topology found for those concepts.` });
+        }
     }
+    
+    isThinking = false;
 }
 
 self.onmessage = function(e) {
@@ -384,6 +417,12 @@ self.onmessage = function(e) {
     if (type === 'USER_QUERY') {
         if (!isReady) {
             return postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Matrix is still initializing. Please wait." });
+        }
+        if (isProcessingQueue) {
+            return postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Cognitive matrix is currently assimilating temporal data. Please wait for digestion to complete." });
+        }
+        if (isThinking) {
+            return postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: The Neocortex is currently synthesizing a response. Please wait." });
         }
         handleConversation(payload);
     } 
@@ -401,9 +440,12 @@ self.onmessage = function(e) {
         isProcessingQueue = false;
         wordQueue = [];
 
-        // 2. WIPE THE RAM
         if (brain) brain.free(); 
         brain = new SpikingNetwork(1_000_000);
+        
+        // RESET: Initialize the WASM count back to zero
+        brain.set_active_count(0); 
+
         dictionary.clear();
         reverseDictionary.clear();
         nodeVectors.clear();
@@ -412,13 +454,10 @@ self.onmessage = function(e) {
         nextAvailableNode = 0;
         initialQueueSize = 0;
 
-        // 3. WIPE THE DISK (Atomic)
         const tx = db.transaction('memory', 'readwrite');
-        const store = tx.objectStore('memory');
-        store.clear();
+        tx.objectStore('memory').clear();
 
         tx.oncomplete = () => {
-            console.log("[SYSTEM]: Tabula Rasa achieved. Matrix is pure.");
             postMessage({ type: 'MATRIX_WIPED' });
         };
     }

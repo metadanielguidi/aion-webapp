@@ -17,7 +17,7 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 ## 🧬 Core Philosophy
 
 * **Zero Epicycles:** AION does not use rigid "Assistant" roleplay prompts. The Llama 3 model acts as a pure grammatical extension of the SNN, forcing synergistic causality rather than disconnected text prediction.
-* **Pure Dynamic Habituation:** AION does not use hardcoded English dictionaries or stop-words. It utilizes Zipf's Law and emergent mathematics to dynamically filter structural noise as it ingests data.
+* **Topological Noise Filtering:** AION uses a combination of a targeted stop-word filter and emergent mathematical "hub penalties" within the SNN to elegantly handle structural noise, preventing common conversational words from overwhelming the causal matrix.
 * **100% Offline & Private:** Once the models are cached to your browser, AION can run entirely air-gapped.
 
 ## ⚖️ AION vs. Pure LLMs
