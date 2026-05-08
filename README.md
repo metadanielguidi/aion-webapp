@@ -1,6 +1,6 @@
 # AION: Synergistic Cognitive Matrix
 
-AION is a 100% offline, browser-native Artificial General Intelligence (AGI) experiment. It Abandons traditional "chatbot" architectures in favor of a continuous physical framework, bridging a temporal physics engine (Spiking Neural Network) with a WebGPU-accelerated Neocortex (Llama 3).
+AION is a 100% offline, browser-native Artificial General Intelligence (AGI) experiment. It abandons traditional "chatbot" architectures in favor of a continuous physical framework, bridging a temporal physics engine (Spiking Neural Network) with a WebGPU-accelerated Neocortex (Llama 3).
 
 There are no APIs, no cloud servers, and no hardcoded personas. AION relies on raw local hardware plasticity to synthesize temporal causality.
 
@@ -19,6 +19,12 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 * **Zero Epicycles:** AION does not use rigid "Assistant" roleplay prompts. The Llama 3 model acts as a pure grammatical extension of the SNN, forcing synergistic causality rather than disconnected text prediction.
 * **Pure Dynamic Habituation:** AION does not use hardcoded English dictionaries or stop-words. It utilizes Zipf's Law and emergent mathematics to dynamically filter structural noise as it ingests data.
 * **100% Offline & Private:** Once the models are cached to your browser, AION can run entirely air-gapped.
+
+## ⚖️ AION vs. Pure LLMs
+
+Standard Large Language Models (LLMs) do not actually reason; they predict the most statistically probable next word based on their training data. When asked to forecast complex events or map causal chains, they often hallucinate statistics, drift off-topic, or regurgitate internet consensus. 
+
+AION solves this by separating **causation** from **translation**. The Spiking Neural Network (SNN) calculates a strict, deterministic vector cascade of cause-and-effect based on your temporal data. The WebGPU Llama 3 model is structurally constrained to act *only* as a grammatical translator for that mathematical topology. The LLM is forced to weave a forward-moving narrative out of the SNN's rigid physical nodes, eliminating hallucinations and enabling genuine, emergent causal logic.
 
 ## ⚙️ Hardware & Software Requirements
 
@@ -39,19 +45,24 @@ Because AION bypasses the CPU to run an 8B parameter model directly in the brows
    ├── Cargo.toml
    ├── src/
    │   └── lib.rs
-   └── /pkg
+   └── /pkg                 <-- Generated in Step 2
        ├── aion_core.js
        └── aion_core_bg.wasm
    ```
 
+2. **Compile the Matrix (Rust to WASM):** You must have `wasm-pack` installed. Open your terminal in the root directory and run:
+   ```bash
+   wasm-pack build --target web
+   ```
+   *This will compile your SNN physics engine and generate the `/pkg` directory.*
 
-2. **Start a Local Server:** * *Python:* Run `python3 -m http.server 8000` in the root directory.
-* *VS Code:* Use the "Live Server" extension.
-* *Node.js:* Use `npx serve`.
+3. **Start a Local Server:** * *Python:* Run `python3 -m http.server 8000` in the root directory.
+   * *VS Code:* Use the "Live Server" extension.
+   * *Node.js:* Use `npx serve`.
 
+4. **Launch the Matrix:** Navigate to `http://localhost:8000` in your WebGPU-enabled browser.
 
-3. **Launch the Matrix:** Navigate to `http://localhost:8000` in your WebGPU-enabled browser.
-4. **The Initial Boot (Patience Required):** On the very first launch, the Web Worker will download the ~4.5GB Llama 3 model in chunks and compile it into WebGPU shaders. **This will take several minutes.** Progress is tracked in the UI terminal. Subsequent boots will load almost instantly from the IndexedDB cache.
+5. **The Initial Boot (Patience Required):** On the very first launch, the Web Worker will download the ~4.5GB Llama 3 model in chunks and compile it into WebGPU shaders. **This will take several minutes.** Progress is tracked in the UI terminal. Subsequent boots will load almost instantly from the IndexedDB cache.
 
 ## 📡 Operating Protocols
 
