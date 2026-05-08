@@ -162,18 +162,15 @@ function extractValidWords(rawStr, isLearning = false) {
     const validWords = [];
 
     for (let w of words) {
-        if (w.length <= 2) continue; 
+        if (w.length <= 2) continue; // Keep the basic 2-letter filter
 
         if (isLearning) {
-            wordFrequencies.set(w, (wordFrequencies.get(w) || 0) + 1);
-            totalWordsIngested++;
+            // Keep the counter for your UI progress bar, but stop logging frequencies
+            totalWordsIngested++; 
         }
 
-        const frequencyRatio = (wordFrequencies.get(w) || 0) / Math.max(1, totalWordsIngested);
-
-        if (totalWordsIngested > GRACE_PERIOD && frequencyRatio > HABITUATION_THRESHOLD) {
-            continue; 
-        }
+        // NO HABITUATION FILTER. 
+        // We let the physical graph topology in Rust handle the noise.
         validWords.push(w);
     }
     return validWords;

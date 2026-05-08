@@ -109,9 +109,8 @@ impl SpikingNetwork {
                 let idx = ptr + j;
                 let mut w = self.edge_weight[idx];
                 
-                // ACTIVE ENTROPY: The heavier the bond, the faster it decays without continuous reinforcement.
-                // This bleeds energy from structural grammar words so they can't dominate the matrix.
-                w -= (0.001 + (w * 0.01)) * dt; 
+                // GENTLE DECAY: Stop starving the matrix. Let the memories persist.
+                w -= w * 0.001 * dt; 
                 
                 if w <= 0.0 {
                     let last_idx = ptr + len - 1;
@@ -173,14 +172,18 @@ impl SpikingNetwork {
 
                 let ptr = self.edge_ptrs[src];
                 let len = self.edge_lens[src];
-                // DECREASED DILUTION
-                let dilution_factor = f32::max(1.0, (len as f32).powf(0.3));
+                
+                // THE DISPERSION LAW: 
+                // "And" has 2000 edges. 2000^0.85 = 638. Its voltage is crushed.
+                // "Physics" has 30 edges. 30^0.85 = 18. Its voltage successfully triggers the target.
+                let dispersion_factor = f32::max(1.0, (len as f32).powf(0.85));
 
                 for i in 0..len {
                     let idx = ptr + i;
                     let target = self.edge_dst[idx];
                     let weight = self.edge_weight[idx];
-                    sim_v[target] += weight / dilution_factor;
+                    
+                    sim_v[target] += weight / dispersion_factor;
                 }
             }
         }
@@ -216,16 +219,12 @@ impl SpikingNetwork {
         let ptr = self.edge_ptrs[src];
         let len = self.edge_lens[src];
 
-        // THE PURE PHYSICS FILTER: Synaptic Dilution
-        // A node with 100 connections ("are") suffers a massive penalty. 
-        // A node with 4 connections ("quantum") retains its strength.
-        let promiscuity_penalty = f32::max(1.0, (len as f32).powf(0.5)); 
-        let adjusted_delta = weight_delta / promiscuity_penalty;
+        // Remove the harsh learning penalties entirely. Let the matrix build massive bonds!
+        let adjusted_delta = weight_delta; 
 
         for i in 0..len {
             let idx = ptr + i;
             if self.edge_dst[idx] == dst {
-                // Apply the mathematically diluted weight
                 self.edge_weight[idx] = f32::min(MAX_WEIGHT, self.edge_weight[idx] + adjusted_delta);
                 return;
             }
@@ -287,7 +286,6 @@ impl SpikingNetwork {
     #[wasm_bindgen]
     pub fn get_causal_topology(&self, active_nodes: &[u32]) -> Vec<f32> {
         let mut topology = Vec::new();
-        // The Forward-Time Lock: Tracks nodes that have already been pulled into the future
         let mut consumed_targets = std::collections::HashSet::new();
         
         for &src in active_nodes {
@@ -297,17 +295,24 @@ impl SpikingNetwork {
             
             let mut best_target = src_idx;
             let mut best_weight = 0.0;
+            let mut best_semantic_weight = 0.0;
             
             for i in 0..len {
                 let idx = ptr + i;
                 let target = self.edge_dst[idx];
                 let weight = self.edge_weight[idx];
                 
-                // THE HIGH-PASS FILTER:
-                // Only extract the topology if the synaptic weight is overwhelmingly strong (> 20.0).
-                // "And" will have thousands of weak 2.0 bonds. "Physics" will have a few massive 80.0 bonds.
-                if active_nodes.contains(&(target as u32)) && weight > best_weight && weight > 20.0 {
-                    if !consumed_targets.contains(&target) && target != src_idx {
+                // THE HUB PENALTY: 
+                // "And" might have a weight of 150.0, but it has 2000 connections.
+                // "Matter" might have a weight of 45.0, but only 30 connections.
+                let target_len = self.edge_lens[target] as f32;
+                let hub_penalty = f32::max(1.0, target_len.powf(0.7)); 
+                let semantic_weight = weight / hub_penalty;
+                
+                // We still demand a raw weight > 5.0, but we use the SEMANTIC weight to pick the winner
+                if active_nodes.contains(&(target as u32)) && weight > 5.0 {
+                    if semantic_weight > best_semantic_weight && !consumed_targets.contains(&target) && target != src_idx {
+                        best_semantic_weight = semantic_weight;
                         best_weight = weight;
                         best_target = target;
                     }
@@ -317,11 +322,10 @@ impl SpikingNetwork {
             if best_weight > 0.0 {
                 topology.push(src as f32);
                 topology.push(best_target as f32);
-                topology.push(best_weight);
+                // We push the raw weight to JS so it still maps to "dictates" or "forces"
+                topology.push(best_weight); 
                 
-                // Permanently lock this target so no other node can loop back to it
                 consumed_targets.insert(best_target);
-                // Lock the source as well to force the voltage strictly outward
                 consumed_targets.insert(src_idx);
             }
         }
