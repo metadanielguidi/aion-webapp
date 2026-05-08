@@ -10,7 +10,7 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 
 * **The Temporal Matrix (Hippocampus):** A massive-scale Spiking Neural Network (SNN) written in **Rust** and compiled to **WebAssembly (WASM)**. It models time, causality, and entropy.
 * **The Sensory Cortex (Embeddings):** Powered by `transformers.js` running the `Xenova/all-MiniLM-L6-v2` ONNX model. It translates raw human language into 384-dimensional mathematical vectors for the SNN.
-* **The Neocortical Synthesis (Voicebox):** Powered by **WebGPU** via `@mlc-ai/web-llm`. AION runs a quantized 8-Billion parameter Llama 3 model directly on your local graphics card to synthesize the SNN's raw physics outputs into intelligent, hallucination-free human language.
+* **The Neocortical Synthesis (Voicebox):** Powered by **WebGPU** via `@mlc-ai/web-llm`. AION runs a quantized 8-Billion parameter Llama 3 model directly on your local graphics card to synthesize the SNN's raw physical edge formulas into intelligent, hallucination-free human language.
 * **The Visual Cortex:** A highly optimized HTML5 Canvas 2D physics engine that renders the SNN's semantic topology and temporal connections in real-time.
 * **Memory:** Persistent IndexedDB storage. AION caches both its multi-gigabyte Neocortex and its evolving network topology locally.
 
@@ -24,7 +24,9 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 
 Standard Large Language Models (LLMs) do not actually reason; they predict the most statistically probable next word based on their training data. When asked to forecast complex events or map causal chains, they often hallucinate statistics, drift off-topic, or regurgitate internet consensus. 
 
-AION solves this by separating **causation** from **translation**. The Spiking Neural Network (SNN) calculates a strict, deterministic vector cascade of cause-and-effect based on your temporal data. The WebGPU Llama 3 model is structurally constrained to act *only* as a grammatical translator for that mathematical topology. The LLM is forced to weave a forward-moving narrative out of the SNN's rigid physical nodes, eliminating hallucinations and enabling genuine, emergent causal logic.
+AION solves this by separating **causation** from **translation**. 
+
+Instead of asking the LLM to guess connections, the Spiking Neural Network (SNN) calculates a strict, deterministic vector cascade and extracts explicit **relational edges** directly from its memory arrays (e.g., `[production(forces)cost]`). The WebGPU Llama 3 model is locked to `0.0` entropy (temperature) and structurally constrained to act *only* as a grammatical translator for that mathematical topology. By feeding the LLM hardcoded subjects and verbs, it is trapped in a grammatical cage, eliminating hallucinations and enabling genuine, emergent causal logic.
 
 ## ⚙️ Hardware & Software Requirements
 
@@ -67,7 +69,7 @@ Because AION bypasses the CPU to run an 8B parameter model directly in the brows
 ## 📡 Operating Protocols
 
 * **Bulk Ingestion:** Use the `Upload Temporal Data` button to feed AION `.txt` files. The SNN will build its semantic topology (visible in the background) based on the causal sequences in the text.
-* **Querying:** Type concepts directly into the terminal (e.g., `what is hardware?`). The SNN will calculate the temporal cascade, and the WebGPU Neocortex will synthesize the physical outcome.
+* **Querying:** Type concepts directly into the terminal (e.g., `Project the future outcome of the market`). The SNN will extract the relational edges, and the WebGPU Neocortex will synthesize the physical outcome.
 * **Tabula Rasa:** Click `HARD RESET MATRIX` to obliterate the current IndexedDB memory state, clearing the SNN's topology and dynamic habituation maps. (This does *not* delete the cached Llama 3 model).
 
 ---

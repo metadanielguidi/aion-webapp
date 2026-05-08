@@ -301,42 +301,66 @@ async function handleConversation(text) {
     }
 
     const uintIds = new Uint32Array(nodeIds);
-    const predictedIds = brain.simulate_future(uintIds, 500);
-    const predictedWords = Array.from(predictedIds).map(id => reverseDictionary.get(id));
     
-    if (predictedWords.length > 0) {
-        postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ⚡ ${predictedWords.join(" ⚡ ")}` });
+    // 1. Run the temporal simulation to get the emergent future nodes
+    const predictedIds = brain.simulate_future(uintIds, 500);
+    
+    if (predictedIds.length > 0) {
+        // 2. Combine the initial concepts and predicted concepts
+        const allActiveIds = new Uint32Array([...uintIds, ...predictedIds]);
         
-        // ADDED: A loading indicator so you know the GPU is working
-        postMessage({ type: 'AION_RESPONSE', text: `[AION_SYS]: Neocortex synthesizing... (Note: The first inference compiles WebGPU shaders and may take 30-90 seconds).` });
+        // 3. Extract the physical edges connecting them using your new Rust method
+        const topologyData = brain.get_causal_topology(allActiveIds);
+        
+        let relationalString = "";
+        
+        // 4. Translate the flat Float32Array into structural verbs
+        for (let i = 0; i < topologyData.length; i += 3) {
+            const srcWord = reverseDictionary.get(topologyData[i]);
+            const dstWord = reverseDictionary.get(topologyData[i+1]);
+            const weight = topologyData[i+2];
+            
+            // Map the physical weight to a strict verb
+            let verb = "connects_to";
+            if (weight > 5.0) verb = "forces";
+            else if (weight > 2.0) verb = "drives";
+            else if (weight > 0.5) verb = "influences";
+            
+            relationalString += `[${srcWord}(${verb})${dstWord}] `;
+        }
 
+        postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ${relationalString.trim()}` });
+        postMessage({ type: 'AION_RESPONSE', text: `[AION_SYS]: Neocortex synthesizing...` });
+
+        // 5. The Ironclad Prompt
         const messages = [
-            { role: "system", content: "You are the cognitive synthesis layer of a temporal predictive matrix. Your only job is to write a single, flowing chronological paragraph forecasting how the timeline will unfold. You must write strictly in the future tense (e.g., 'will cause', 'will lead to'). Do not define the words. Do not use bullet points. Do not invent any numbers, statistics, or external facts. Only describe the projected physical cause-and-effect chain." },
-            { role: "user", content: `Initial conditions: [${translatedWords.join(", ")}]. Projected future timeline: [${predictedWords.join(", ")}]. Synthesize the upcoming physical outcome:` }
+            { 
+                role: "system", 
+                content: "You are the vocal synthesis layer of a physical matrix. Your ONLY job is to translate the provided relational formulas into a single, cohesive future-tense paragraph. Do not invent any outside facts, technologies, or numbers. You must obey the exact verbs and cause-and-effect paths provided." 
+            },
+            { 
+                role: "user", 
+                content: `Relational topology: ${relationalString.trim()}. Synthesize the outcome:` 
+            }
         ];
 
         try {
-            // Start a timer
             const startTime = performance.now();
 
             const reply = await engine.chat.completions.create({
                 messages,
-                temperature: 0.3,
+                temperature: 0.0, // Absolute Zero Entropy
             });
 
-            // Stop the timer
-            const endTime = performance.now();
-            const timeTaken = ((endTime - startTime) / 1000).toFixed(1);
-
-            const finalOutput = reply.choices[0].message.content.trim();
-            postMessage({ type: 'AION_RESPONSE', text: `[AION]: ${finalOutput} [Synthesized in ${timeTaken}s]` });
+            const timeTaken = ((performance.now() - startTime) / 1000).toFixed(1);
+            postMessage({ type: 'AION_RESPONSE', text: `[AION]: ${reply.choices[0].message.content.trim()} [Synthesized in ${timeTaken}s]` });
 
         } catch (err) {
             postMessage({ type: 'AION_RESPONSE', text: `[VOICEBOX ERROR]: Neural synthesis failed. ${err.message}` });
         }
 
     } else {
-        postMessage({ type: 'AION_RESPONSE', text: `[AION]: The causal energy for that concept decays into entropy. No clear future state found.` });
+        postMessage({ type: 'AION_RESPONSE', text: `[AION]: The causal energy decays into entropy. No clear future state found.` });
     }
 }
 

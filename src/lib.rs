@@ -273,4 +273,39 @@ impl SpikingNetwork {
         if data.len() > self.edge_weight.len() { self.edge_weight.resize(data.len(), 0.0); }
         for (i, &v) in data.iter().enumerate() { self.edge_weight[i] = v; }
     }
+    #[wasm_bindgen]
+    pub fn get_causal_topology(&self, active_nodes: &[u32]) -> Vec<f32> {
+        let mut topology = Vec::new();
+        
+        // For every active node, find its strongest connection to the other active nodes
+        for &src in active_nodes {
+            let src_idx = src as usize;
+            let ptr = self.edge_ptrs[src_idx];
+            let len = self.edge_lens[src_idx];
+            
+            let mut best_target = src_idx;
+            let mut best_weight = 0.0;
+            
+            for i in 0..len {
+                let idx = ptr + i;
+                let target = self.edge_dst[idx];
+                let weight = self.edge_weight[idx];
+                
+                // Only map synapses that connect to other nodes in the active timeline
+                if active_nodes.contains(&(target as u32)) && weight > best_weight {
+                    best_weight = weight;
+                    best_target = target;
+                }
+            }
+            
+            if best_weight > 0.0 && best_target != src_idx {
+                // Export as flat array: [Source ID, Target ID, Weight]
+                topology.push(src as f32);
+                topology.push(best_target as f32);
+                topology.push(best_weight);
+            }
+        }
+        
+        topology
+    }
 }
