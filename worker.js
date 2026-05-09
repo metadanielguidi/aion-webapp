@@ -14,7 +14,7 @@ let isProcessingQueue = false;
 let isThinking = false;
 let idleTimer;
 let wordQueue = [];
-let lastProcessedNode = null;
+let recentNodes = [];
 let initialQueueSize = 0;
 
 const nodeVectors = new Map(); 
@@ -31,20 +31,6 @@ const GRACE_PERIOD = 20;
 let nextAvailableNode = 0; 
 const dbName = "AionOracleDB";
 let db;
-
-// STRUCTURAL NOISE FILTER
-// Stops query words like "what" and "how" from triggering massive hub-spikes
-const STOP_WORDS = new Set([
-    "the", "and", "that", "have", "for", "not", "with", "you", "this", "but", 
-    "his", "from", "they", "say", "her", "she", "will", "one", "all", "would", 
-    "there", "their", "what", "out", "about", "who", "get", "which", "when", 
-    "make", "can", "like", "time", "just", "him", "know", "take", "people", 
-    "into", "year", "your", "good", "some", "could", "them", "see", "other", 
-    "than", "then", "now", "look", "only", "come", "its", "over", "think", 
-    "also", "back", "after", "use", "two", "how", "our", "work", "first", 
-    "well", "way", "even", "new", "want", "because", "any", "these", "give", 
-    "day", "most", "are", "was", "were"
-]);
 
 function cosineSimilarity(vecA, vecB) {
     let dotProduct = 0, normA = 0, normB = 0;
@@ -95,6 +81,7 @@ async function saveMatrix() {
         v: brain.export_v(activeCount),
         edge_ptrs: brain.export_edge_ptrs(activeCount),
         edge_lens: brain.export_edge_lens(activeCount),
+        edge_caps: brain.export_edge_caps(activeCount),
         edge_dst: brain.export_edge_dst(maxEdgeIdx),
         edge_weight: brain.export_edge_weight(maxEdgeIdx)
     };
@@ -126,9 +113,14 @@ async function loadMatrix() {
                 }
 
                 nextAvailableNode = state.nextAvailableNode;
+                
+                // WAKE UP THE MATRIX: Tell the SNN exactly how many nodes it has!
+                brain.set_active_count(nextAvailableNode);
+                
                 brain.import_v(state.v);
                 brain.import_edge_ptrs(state.edge_ptrs);
                 brain.import_edge_lens(state.edge_lens);
+                if (state.edge_caps) brain.import_edge_caps(state.edge_caps);
                 brain.import_edge_dst(state.edge_dst);
                 brain.import_edge_weight(state.edge_weight);
                 
@@ -192,15 +184,15 @@ function extractValidWords(rawStr, isLearning = false) {
 
     for (let w of words) {
         if (w.length <= 2) continue; // Keep the basic 2-letter filter
-        if (STOP_WORDS.has(w)) continue; // Filter out structural noise
 
         if (isLearning) {
-            // Keep the counter for your UI progress bar, but stop logging frequencies
             totalWordsIngested++; 
+            wordFrequencies.set(w, (wordFrequencies.get(w) || 0) + 1);
         }
 
-        // NO HABITUATION FILTER. 
-        // We let the physical graph topology in Rust handle the noise.
+        // PURE DYNAMIC HABITUATION
+        // We no longer use hardcoded stop words. Every word enters the matrix,
+        // and the SNN naturally habituates to structural noise via focal voltage penalties.
         validWords.push(w);
     }
     return validWords;
@@ -213,7 +205,7 @@ function processText(text) {
     if (initialQueueSize === 0) initialQueueSize = wordQueue.length;
     else initialQueueSize += newWords.length;
     
-    lastProcessedNode = null; 
+    recentNodes = []; 
     if (!isProcessingQueue) {
         processQueueAsync();
     }
@@ -267,11 +259,25 @@ async function processQueueAsync() {
             }
         }
 
-        if (lastProcessedNode !== null && lastProcessedNode !== targetNodeIndex) {
-            brain.create_synapse(lastProcessedNode, targetNodeIndex, 25.0); 
-            brain.create_synapse(targetNodeIndex, lastProcessedNode, 5.0); 
+        // COGNITIVE WORKING MEMORY WINDOW
+        // Instead of linear chains, we link the new concept to the last 6 concepts in working memory.
+        // This creates a dense semantic web, allowing the matrix to form direct bridges 
+        // (e.g., physics -> advances) skipping filler words completely!
+        for (let i = recentNodes.length - 1; i >= 0; i--) {
+            const prevNode = recentNodes[i];
+            if (prevNode !== targetNodeIndex) {
+                // FLATTENED MEMORY BONDS: No temporal decay! Every concept in the window 
+                // forms an equally massive 25.0V bridge. The physical Goldilocks curve will 
+                // mathematically prioritize the true domain concepts over the adjacent filler.
+                brain.create_synapse(prevNode, targetNodeIndex, 25.0); 
+                brain.create_synapse(targetNodeIndex, prevNode, 5.0); 
+            }
         }
-        lastProcessedNode = targetNodeIndex;
+        
+        recentNodes.push(targetNodeIndex);
+        if (recentNodes.length > 6) { // INCREASED to 6 to capture longer semantic gaps
+            recentNodes.shift();
+        }
 
         brain.inject_voltage(targetNodeIndex, brain.grade_stimulus(targetNodeIndex));
         brain.tick(0.016, true);
@@ -349,27 +355,33 @@ async function handleConversation(text) {
     const topologyData = brain.get_causal_topology(allActiveIds, uintIds);
     
     if (topologyData.length > 0) {
-        let relationalString = "";
+        let displayString = "";
+        let promptString = "";
         
         // 4. Translate the flat Float32Array into high-resolution structural verbs
-        for (let i = 0; i < topologyData.length; i += 3) {
+        for (let i = 0; i < topologyData.length; i += 4) {
             const srcWord = reverseDictionary.get(topologyData[i]);
             const dstWord = reverseDictionary.get(topologyData[i+1]);
             const weight = topologyData[i+2];
+            const score = topologyData[i+3];
             
-            // EXPANDED 150.0 SCALE GRADIENT
+            // UNCAPPED SCALE GRADIENT (Adapting to Massive Hebbian Bonds)
             let verb = "connects_to";
-            if (weight >= 135.0) verb = "dictates";
-            else if (weight > 100.0) verb = "forces";
-            else if (weight > 70.0) verb = "drives";
+            if (weight >= 500.0) verb = "dictates";
+            else if (weight > 250.0) verb = "forces";
+            else if (weight > 100.0) verb = "drives";
             else if (weight > 40.0) verb = "generates";
             else if (weight > 15.0) verb = "influences";
             else if (weight > 2.0) verb = "interacts_with";
             
-            relationalString += `[${srcWord}(${verb})${dstWord}] `;
+            // Format massive uncapped scores clearly (e.g., 1.5M, 45.2k)
+            let displayScore = score >= 1000000 ? (score / 1000000).toFixed(1) + "M" : (score >= 1000 ? (score / 1000).toFixed(1) + "k" : score.toFixed(1));
+
+            displayString += `[${srcWord}(${verb})${dstWord}:${displayScore}] `;
+            promptString += `[${srcWord}(${verb})${dstWord}] `;
         }
 
-        postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ${relationalString.trim()}` });
+        postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ${displayString.trim()}` });
         postMessage({ type: 'AION_RESPONSE', text: `[AION_SYS]: Neocortex synthesizing...` });
 
         // 5. The Ironclad Prompt
@@ -380,7 +392,7 @@ async function handleConversation(text) {
             },
             { 
                 role: "user", 
-                content: `Relational topology: ${relationalString.trim()}. Synthesize the outcome:` 
+                content: `Relational topology: ${promptString.trim()}. Synthesize the outcome:` 
             }
         ];
 
@@ -439,6 +451,7 @@ self.onmessage = function(e) {
         clearTimeout(idleTimer);
         isProcessingQueue = false;
         wordQueue = [];
+        recentNodes = [];
 
         if (brain) brain.free(); 
         brain = new SpikingNetwork(1_000_000);

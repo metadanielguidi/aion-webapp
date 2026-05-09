@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use js_sys::Math;
 
 const RESTING_POTENTIAL: f32 = 0.2;
-const MAX_WEIGHT: f32 = 150.0; // INCREASED: Allows for stronger causal bonds
+const MAX_WEIGHT: f32 = 10000.0; // UNCAPPED: Allow true Hebbian bonds to grow exponentially
 
 #[wasm_bindgen]
 pub struct SpikingNetwork {
@@ -142,11 +142,29 @@ impl SpikingNetwork {
         let mut spike_counts = vec![0; self.num_nodes];
         let dt = 0.1;
 
+        // DYNAMIC NETWORK METRICS: Find the maximum graph density to calculate relative thresholds
+        let mut max_len = 1.0f32;
+        for i in 0..self.num_active_nodes {
+            let l = self.edge_lens[i] as f32;
+            if l > max_len { max_len = l; }
+        }
+        
+        // THE GOLDILOCKS CURVE (Perfected for Secondary Stop-Words)
+        // Core threshold set to 3% to naturally demote obscure words, while letting domains rise.
+        // Hub threshold set to 8% to catch secondary stop-words (which, these) that previously evaded the 20% mark.
+        let core_threshold = f32::max(3.0, max_len * 0.03);
+        let hub_threshold = f32::max(12.0, max_len * 0.08);
+
         for t in 0..ticks {
             // OPTIMIZED INJECTION: Pulse strongly a few times to start the cascade, then let the matrix resonate naturally
             if t == 0 || t == 50 || t == 100 {
                 for &node in inject_nodes {
-                    if (node as usize) < self.num_active_nodes { sim_v[node as usize] += 15.0; } 
+                    if (node as usize) < self.num_active_nodes { 
+                        // CONSCIOUS OVERRIDE: 
+                        // If the user explicitly queries a concept, it bypasses subconscious habituation.
+                        // It receives the full 15.0V focal injection to guarantee it anchors the cascade!
+                        sim_v[node as usize] += 15.0; 
+                    } 
                 }
             }
 
@@ -167,44 +185,70 @@ impl SpikingNetwork {
             for &src in &spikes {
                 sim_trace[src] = 1.0;
                 sim_v[src] = RESTING_POTENTIAL;
-                // BALANCED FATIGUE: Allow strong semantic concepts to ring, but prevent infinite runaway noise
-                sim_fatigue[src] += 5.0;
+                // GENTLE FATIGUE: Allow domain clusters to physically resonate without infinite ping-ponging
+                sim_fatigue[src] += 2.0;
 
                 let ptr = self.edge_ptrs[src];
                 let len = self.edge_lens[src];
 
-                let dispersion_factor = f32::max(1.0, (len as f32).powf(0.45));
+                let dispersion_factor = f32::max(1.0, (len as f32 / core_threshold).powf(0.5));
 
                 for i in 0..len {
                     let idx = ptr + i;
                     let target = self.edge_dst[idx];
                     let weight = self.edge_weight[idx];
-                    sim_v[target] += weight / dispersion_factor;
+                    
+                    let target_len = self.edge_lens[target] as f32;
+                    let target_penalty = f32::max(1.0, (target_len / hub_threshold).powf(3.0));
+
+                    sim_v[target] += (weight / dispersion_factor) / target_penalty;
                 }
             }
         }
 
+        let min_edges = if self.num_active_nodes < 200 { 1 } else { 3 };
+
         let mut predictions: Vec<(usize, u32)> = spike_counts.into_iter()
             .enumerate()
             .filter(|(i, _)| !inject_nodes.contains(&(*i as u32)))
-            // MINIMUM STRUCTURAL ANCHOR: A node must have at least 3 connections 
-            // to be considered a stable concept rather than an obscure one-off word.
-            .filter(|(i, _)| self.edge_lens[*i] >= 3)
+            // DYNAMIC STRUCTURAL ANCHOR: Small toy matrices allow 1 edge, while 
+            // large adult matrices require 3+ to filter out obscure noise.
+            .filter(|(i, _)| self.edge_lens[*i] >= min_edges)
             .collect();
         
         predictions.sort_by(|a, b| {
-            let len_a = self.edge_lens[a.0] as f32;
-            let len_b = self.edge_lens[b.0] as f32;
+            let ptr_a = self.edge_ptrs[a.0];
+            let len_a = self.edge_lens[a.0];
+            let mut max_w_a = 1.0f32;
+            for i in 0..len_a {
+                let w = self.edge_weight[ptr_a + i];
+                if w > max_w_a { max_w_a = w; }
+            }
             
-            // SOFTENED RARE WORD BIAS: Lowered the exponent to 0.2. Moderate core hubs (like "energy" 
-            // or "matter") will no longer be mathematically punished by obscure words like "educator".
-            let score_a = (a.1 as f32) / f32::max(1.0, len_a.powf(0.2));
-            let score_b = (b.1 as f32) / f32::max(1.0, len_b.powf(0.2));
+            let ptr_b = self.edge_ptrs[b.0];
+            let len_b = self.edge_lens[b.0];
+            let mut max_w_b = 1.0f32;
+            for i in 0..len_b {
+                let w = self.edge_weight[ptr_b + i];
+                if w > max_w_b { max_w_b = w; }
+            }
+
+            let core_bonus_a = f32::min(2.0, (len_a as f32 / core_threshold).powf(0.5));
+            let core_bonus_b = f32::min(2.0, (len_b as f32 / core_threshold).powf(0.5));
+
+            let hub_penalty_a = f32::max(1.0, (len_a as f32 / hub_threshold).powf(3.0));
+            let hub_penalty_b = f32::max(1.0, (len_b as f32 / hub_threshold).powf(3.0));
+
+            // HEBBIAN SUPREMACY + THE GOLDILOCKS TOPOLOGY:
+            // Squaring the maximum weight enforces that repeated, concentrated bonds 
+            // obliterate random, one-off stop-word bonds.
+            let score_a = ((a.1 as f32) * max_w_a.powf(2.0) * core_bonus_a) / hub_penalty_a;
+            let score_b = ((b.1 as f32) * max_w_b.powf(2.0) * core_bonus_b) / hub_penalty_b;
             score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
         });
 
         predictions.into_iter()
-            .take(10) // INCREASED: Expand the emergent future pool for a richer causal topology
+            .take(15) // MAXIMUM EXPANSION: Allows the matrix to dream further into the future
             .filter(|&(_, count)| count > 0) 
             .map(|(i, _)| i as u32)
             .collect()
@@ -275,6 +319,8 @@ impl SpikingNetwork {
     #[wasm_bindgen] pub fn import_edge_ptrs(&mut self, data: &[u32]) { for (i, &v) in data.iter().enumerate() { if i < self.num_nodes { self.edge_ptrs[i] = v as usize; } } }
     #[wasm_bindgen] pub fn export_edge_lens(&self, active: usize) -> Vec<u32> { self.edge_lens[0..active].iter().map(|&x| x as u32).collect() }
     #[wasm_bindgen] pub fn import_edge_lens(&mut self, data: &[u32]) { for (i, &v) in data.iter().enumerate() { if i < self.num_nodes { self.edge_lens[i] = v as usize; } } }
+    #[wasm_bindgen] pub fn export_edge_caps(&self, active: usize) -> Vec<u32> { self.edge_caps[0..active].iter().map(|&x| x as u32).collect() }
+    #[wasm_bindgen] pub fn import_edge_caps(&mut self, data: &[u32]) { for (i, &v) in data.iter().enumerate() { if i < self.num_nodes { self.edge_caps[i] = v as usize; } } }
     
     #[wasm_bindgen]
     pub fn get_max_edge_index(&self, active_count: usize) -> usize {
@@ -302,62 +348,124 @@ impl SpikingNetwork {
         // Use a 64-bit pair to track undirected edges and prevent redundant A->B and B->A duplication
         let mut seen_edges = std::collections::HashSet::new();
         
+        let min_edges = if self.num_active_nodes < 200 { 1 } else { 3 };
+
+        // DYNAMIC NETWORK METRICS: Ensure the Goldilocks curve scales with graph size
+        let mut max_len = 1.0f32;
+        for i in 0..self.num_active_nodes {
+            let l = self.edge_lens[i] as f32;
+            if l > max_len { max_len = l; }
+        }
+        
+        // THE GOLDILOCKS CURVE (Perfected for Secondary Stop-Words)
+        // Core threshold set to 3% to gracefully reward domains without over-exalting them.
+        // Hub threshold set to 8% to confidently crush secondary stop-words.
+        let core_threshold = f32::max(3.0, max_len * 0.03);
+        let hub_threshold = f32::max(12.0, max_len * 0.08);
+        
+        // Store all valid edges globally: (src, target, raw_weight, global_score)
+        let mut all_edges: Vec<(usize, usize, f32, f32)> = Vec::new();
+
         for &src in active_nodes {
             let src_idx = src as usize;
             let ptr = self.edge_ptrs[src_idx];
             let len = self.edge_lens[src_idx];
             
+            // THE OBSCURE SOURCE FILTER:
+            // Prevent rare query words from hijacking the graph if they haven't formed enough edges.
+            if len < min_edges { continue; }
+
+            let is_input_src = inject_nodes.contains(&(src as u32));
+            
+            // CONSCIOUS OVERRIDE: User queried nodes bypass the source hub penalty
+            let src_hub_penalty = if is_input_src { 
+                1.0 
+            } else { 
+                f32::max(1.0, ((len as f32) / hub_threshold).powf(3.0)) 
+            };
+            
+            let src_core_bonus = f32::min(2.0, ((len as f32) / core_threshold).powf(0.5));
+            
             let mut top_targets = Vec::new();
-            
-            let is_input_node = inject_nodes.contains(&src);
-            
+
             for i in 0..len {
                 let idx = ptr + i;
                 let target = self.edge_dst[idx];
                 let weight = self.edge_weight[idx];
                 
-                // THE HUB PENALTY: 
-                // "And" might have a weight of 150.0, but it has 2000 connections.
-                // "Matter" might have a weight of 45.0, but only 30 connections.
-                let target_len = self.edge_lens[target] as f32;
-                let hub_penalty = f32::max(1.0, target_len.powf(0.4)); // Softened from 0.7 to 0.4
-                let mut semantic_weight = weight / hub_penalty;
-                
-                // FORCED ANCHORING: If this is the user's input concept, we let it pull its strongest 
-                // physical edge into the topology, even if that target didn't make the top 6 predictions.
                 let is_active_target = active_nodes.contains(&(target as u32));
-                let valid_target = is_active_target || is_input_node;
                 
-                // MINIMUM STRUCTURAL ANCHOR: Prevent the graph from anchoring to 
+                // DYNAMIC STRUCTURAL ANCHOR: Prevent the graph from anchoring to 
                 // obscure rare words just because they have a low hub penalty.
-                if self.edge_lens[target] < 3 { continue; }
+                if self.edge_lens[target] < min_edges { continue; }
 
-                if valid_target && weight > 1.0 && target != src_idx {
-                    // PREFERENCE TO ACTIVE GRAPH: Biases the SNN to draw lines between nodes that actually spiked
-                    if is_active_target {
-                        semantic_weight *= 2.0; 
-                    }
+                // THE GOLDILOCKS TOPOLOGY FILTER:
+                // 1. Core Bonus: Rewards established domain concepts (10-40 edges)
+                // 2. Hub Penalty: Crushes massive structural noise like "the" (100+ edges)
+                let target_len = self.edge_lens[target] as f32;
+                let dst_core_bonus = f32::min(2.0, (target_len / core_threshold).powf(0.5));
+                
+                let is_input_dst = inject_nodes.contains(&(target as u32));
+                let dst_hub_penalty = if is_input_dst {
+                    1.0
+                } else {
+                    f32::max(1.0, (target_len / hub_threshold).powf(3.0))
+                };
+                
+                // SYNERGISTIC SEMANTIC SCORE (Hebbian Supremacy):
+                // Squaring the physical weight mathematically guarantees that words which repeatedly 
+                // form concentrated bonds (domains) obliterate words that form random, dispersed bonds (noise).
+                let semantic_score = (weight.powf(2.0) * src_core_bonus * dst_core_bonus) / (src_hub_penalty * dst_hub_penalty);
+
+                // SEMANTIC EVENT HORIZON: Only edges with a score >= 400.0 have the gravity to survive.
+                if is_active_target && weight > 1.0 && target != src_idx && semantic_score >= 400.0 {
+                    let edge_pair = if src_idx < target { 
+                        ((src_idx as u64) << 32) | (target as u64) 
+                    } else { 
+                        ((target as u64) << 32) | (src_idx as u64) 
+                    };
                     
-                    top_targets.push((target, weight, semantic_weight));
+                    if !seen_edges.contains(&edge_pair) {
+                        top_targets.push((target, weight, semantic_score, edge_pair));
+                    }
                 }
             }
             
+            // PREVENTING THE STAR TOPOLOGY:
+            // Sort this specific node's targets, and only allow it to contribute its top 2 edges.
+            // This forces the matrix to walk the causal chain rather than radiating 12 edges from a single queried node!
             top_targets.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
             
-            // Allow up to 2 top connections per node to build a richer, more complex matrix
-            for (target, weight, _) in top_targets.into_iter().take(2) {
-                let edge_pair = if src_idx < target { 
-                    ((src_idx as u64) << 32) | (target as u64) 
-                } else { 
-                    ((target as u64) << 32) | (src_idx as u64) 
-                };
+            for (target, weight, score, edge_pair) in top_targets.into_iter().take(2) {
+                seen_edges.insert(edge_pair);
+                all_edges.push((src_idx, target, weight, score));
+            }
+        }
+        
+        // SORT GLOBALLY BY SEMANTIC SCORE
+        all_edges.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
+        
+        let mut degree_count = std::collections::HashMap::new();
+        let mut edge_count = 0;
+        
+        for (src, target, weight, score) in all_edges {
+            let src_deg = *degree_count.get(&src).unwrap_or(&0);
+            let tgt_deg = *degree_count.get(&target).unwrap_or(&0);
+            
+            // GLOBAL DEGREE CAP (Preventing the Inverse Star Topology)
+            // By enforcing that no single concept can participate in more than 3 edges, 
+            // we guarantee a deep, cascading topological chain instead of a shallow star!
+            if src_deg < 3 && tgt_deg < 3 {
+                degree_count.insert(src, src_deg + 1);
+                degree_count.insert(target, tgt_deg + 1);
                 
-                if !seen_edges.contains(&edge_pair) {
-                    seen_edges.insert(edge_pair);
-                    topology.push(src as f32);
-                    topology.push(target as f32);
-                    topology.push(weight); 
-                }
+                topology.push(src as f32);
+                topology.push(target as f32);
+                topology.push(weight);
+                topology.push(score); // EXPORT SEMANTIC SCORE TO JS
+                
+                edge_count += 1;
+                if edge_count >= 12 { break; }
             }
         }
         

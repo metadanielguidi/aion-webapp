@@ -17,8 +17,15 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 ## 🧬 Core Philosophy
 
 * **Zero Epicycles:** AION does not use rigid "Assistant" roleplay prompts. The Llama 3 model acts as a pure grammatical extension of the SNN, forcing synergistic causality rather than disconnected text prediction.
-* **Topological Noise Filtering:** AION uses a combination of a targeted stop-word filter and emergent mathematical "hub penalties" within the SNN to elegantly handle structural noise, preventing common conversational words from overwhelming the causal matrix.
+* **Dynamic Habituation (Zero Hardcoded Filters):** AION does not use hardcoded English dictionaries or stop-word filters. Every word enters the matrix. The Spiking Neural Network naturally learns to habituate to structural noise (like "the" or "and") by dynamically scaling focal voltage penalties based on a node's topological edge count, mathematically mimicking human subconscious attention.
 * **100% Offline & Private:** Once the models are cached to your browser, AION can run entirely air-gapped.
+
+## 🌀 Emergent Network Dynamics
+
+To prevent structural noise from overwhelming true semantic domains, AION employs several mathematically derived constraints:
+* **Cognitive Working Memory Window:** AION ingests text using a flattened sliding window, mapping dense semantic webs rather than simple linear chains, which allows the matrix to naturally bridge concepts across filler words.
+* **The Goldilocks Curve:** A scale-invariant topology filter that mathematically rewards true domain concepts (e.g., "physics", "energy") with core multipliers, while applying massive exponential hub penalties to both primary and secondary stop-words based on the evolving maximum density of the graph.
+* **Hebbian Supremacy & The Semantic Event Horizon:** Physical synaptic weights are squared to enforce non-linear concentration. Any causal edge that fails to exceed the 400.0 "Semantic Event Horizon" score is annihilated, ensuring only the most profound mathematical truths are sent to the Neocortex for synthesis.
 
 ## ⚖️ AION vs. Pure LLMs
 
