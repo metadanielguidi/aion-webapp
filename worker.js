@@ -32,6 +32,29 @@ let nextAvailableNode = 0;
 const dbName = "AionOracleDB";
 let db;
 
+function sendTelemetry(statusOverride = null) {
+    let status = statusOverride;
+    if (!status) {
+        if (!isReady) status = "INITIALIZING";
+        else if (isProcessingQueue) status = "INGESTING_DATA";
+        else if (isThinking) status = "SYNTHESIZING";
+        else status = "IDLE (METABOLIZING)";
+    }
+    
+    let totalEdges = 0;
+    if (brain && nextAvailableNode > 0) {
+        const lens = brain.export_edge_lens(nextAvailableNode);
+        for (let i = 0; i < lens.length; i++) {
+            totalEdges += lens[i];
+        }
+    }
+
+    postMessage({
+        type: 'TELEMETRY_UPDATE',
+        payload: { status, nodes: nextAvailableNode, words: totalWordsIngested, edges: totalEdges }
+    });
+}
+
 function cosineSimilarity(vecA, vecB) {
     let dotProduct = 0, normA = 0, normB = 0;
     for (let i = 0; i < vecA.length; i++) {
@@ -124,6 +147,7 @@ async function loadMatrix() {
                 brain.import_edge_dst(state.edge_dst);
                 brain.import_edge_weight(state.edge_weight);
                 
+                sendTelemetry();
                 postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Temporal logic and semantic topology restored." });
                 for (let i = 0; i < nextAvailableNode; i++) {
                     postMessage({ type: 'NEW_CONCEPT', word: reverseDictionary.get(i) });
@@ -162,6 +186,7 @@ async function setup() {
     
     startCognitiveMetabolism();
     isReady = true;
+    sendTelemetry();
     postMessage({ type: 'READY' });
 }
 
@@ -184,6 +209,7 @@ function extractValidWords(rawStr, isLearning = false) {
 
     for (let w of words) {
         if (w.length <= 2) continue; // Keep the basic 2-letter filter
+        if (!isNaN(w)) continue; // Filter out raw numbers like "1153"
 
         if (isLearning) {
             totalWordsIngested++; 
@@ -216,7 +242,7 @@ async function processQueueAsync() {
     isIdle = false;
     clearTimeout(idleTimer);
 
-    const digestionLimit = 20; 
+    const digestionLimit = 100; // Increased to speed up bulk ingestion
     let processedThisCycle = 0;
 
     while (wordQueue.length > 0 && processedThisCycle < digestionLimit) {
@@ -255,23 +281,36 @@ async function processQueueAsync() {
                 nodeVectors.set(targetNodeIndex, incomingVector); 
                 brain.flood_dopamine(); 
                 
+                sendTelemetry();
                 postMessage({ type: 'NEW_CONCEPT', word }); 
             }
         }
 
         // COGNITIVE WORKING MEMORY WINDOW
-        // Instead of linear chains, we link the new concept to the last 6 concepts in working memory.
-        // This creates a dense semantic web, allowing the matrix to form direct bridges 
-        // (e.g., physics -> advances) skipping filler words completely!
+        // We use the Sensory Cortex (embeddings) to modulate the temporal bonds.
+        // Semantically similar concepts form massive Hebbian bonds, while grammatical filler is suppressed!
+        let distance = 1;
+        const currentVec = nodeVectors.get(targetNodeIndex);
         for (let i = recentNodes.length - 1; i >= 0; i--) {
             const prevNode = recentNodes[i];
             if (prevNode !== targetNodeIndex) {
-                // FLATTENED MEMORY BONDS: No temporal decay! Every concept in the window 
-                // forms an equally massive 25.0V bridge. The physical Goldilocks curve will 
-                // mathematically prioritize the true domain concepts over the adjacent filler.
-                brain.create_synapse(prevNode, targetNodeIndex, 25.0); 
-                brain.create_synapse(targetNodeIndex, prevNode, 5.0); 
+                let sim = 0.1; // default low similarity
+                const prevVec = nodeVectors.get(prevNode);
+                if (currentVec && prevVec) {
+                    sim = cosineSimilarity(currentVec, prevVec);
+                }
+                
+                // STEEP SEMANTIC CLIFF: Dense embedding models mathematically cluster syntactic roles (prepositions/articles).
+                // By raising the cliff to 0.45, we ensure that base grammatical structures fall into the void,
+                // while true contextually related domains bond effortlessly!
+                let semanticMultiplier = sim >= 0.45 ? sim * 3.0 : 0.01;
+
+                const forwardWeight = (25.0 / distance) * semanticMultiplier;
+                const backwardWeight = (5.0 / distance) * semanticMultiplier;
+                brain.create_synapse(prevNode, targetNodeIndex, forwardWeight); 
+                brain.create_synapse(targetNodeIndex, prevNode, backwardWeight); 
             }
+            distance++;
         }
         
         recentNodes.push(targetNodeIndex);
@@ -286,15 +325,17 @@ async function processQueueAsync() {
     if (initialQueueSize > 0) {
         const processed = initialQueueSize - wordQueue.length;
         const percentage = Math.floor((processed / initialQueueSize) * 100);
+        sendTelemetry();
         postMessage({ type: 'DIGESTION_PROGRESS', progress: percentage });
     }
     
     if (wordQueue.length > 0) {
-        setTimeout(processQueueAsync, 10);
+        setTimeout(processQueueAsync, 1);
     } else {
         isProcessingQueue = false;
         initialQueueSize = 0;
         postMessage({ type: 'DIGESTION_PROGRESS', progress: 100 });
+        sendTelemetry();
         postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Semantic assimilation complete." });
         
         idleTimer = setTimeout(() => {
@@ -306,6 +347,7 @@ async function processQueueAsync() {
 
 async function handleConversation(text) {
     isThinking = true;
+    sendTelemetry();
     const words = extractValidWords(text, false); 
     let nodeIds = [];
     let mappedMsg = "";
@@ -336,6 +378,7 @@ async function handleConversation(text) {
 
     if (nodeIds.length === 0) {
         isThinking = false;
+        sendTelemetry();
         return postMessage({ type: 'AION_RESPONSE', text: "[ORACLE ERROR]: Zero semantic anchors found in memory for that query." });
     }
 
@@ -358,6 +401,17 @@ async function handleConversation(text) {
         let displayString = "";
         let promptString = "";
         
+        // DYNAMIC VERB SCALING: Calculate both min and max to find the true range
+        let maxScore = -Infinity; 
+        let minScore = Infinity;
+        for (let i = 0; i < topologyData.length; i += 4) {
+            if (topologyData[i+3] > maxScore) maxScore = topologyData[i+3];
+            if (topologyData[i+3] < minScore) minScore = topologyData[i+3];
+        }
+        
+        let scoreRange = maxScore - minScore;
+        if (scoreRange === 0) scoreRange = 1.0; // Prevent division by zero
+
         // 4. Translate the flat Float32Array into high-resolution structural verbs
         for (let i = 0; i < topologyData.length; i += 4) {
             const srcWord = reverseDictionary.get(topologyData[i]);
@@ -365,14 +419,14 @@ async function handleConversation(text) {
             const weight = topologyData[i+2];
             const score = topologyData[i+3];
             
-            // UNCAPPED SCALE GRADIENT (Adapting to Massive Hebbian Bonds)
-            let verb = "connects_to";
-            if (weight >= 500.0) verb = "dictates";
-            else if (weight > 250.0) verb = "forces";
-            else if (weight > 100.0) verb = "drives";
-            else if (weight > 40.0) verb = "generates";
-            else if (weight > 15.0) verb = "influences";
-            else if (weight > 2.0) verb = "interacts_with";
+            // NORMALIZED SCALING (Maps the top 12 edges across the entire verb gradient)
+            const pct = (score - minScore) / scoreRange;
+            let verb = "interacts_with";
+            if (pct >= 0.85) verb = "dictates";
+            else if (pct > 0.60) verb = "forces";
+            else if (pct > 0.40) verb = "drives";
+            else if (pct > 0.20) verb = "generates";
+            else if (pct > 0.05) verb = "influences";
             
             // Format massive uncapped scores clearly (e.g., 1.5M, 45.2k)
             let displayScore = score >= 1000000 ? (score / 1000000).toFixed(1) + "M" : (score >= 1000 ? (score / 1000).toFixed(1) + "k" : score.toFixed(1));
@@ -388,7 +442,7 @@ async function handleConversation(text) {
         const messages = [
             { 
                 role: "system", 
-                content: "You are the vocal synthesis layer of a physical matrix. Your ONLY job is to translate the provided relational formulas into a single, cohesive future-tense paragraph. Do not invent any outside facts, technologies, or numbers. You must obey the exact verbs and cause-and-effect paths provided." 
+                content: "You are the vocal synthesis layer of a physical matrix. Your ONLY job is to translate the provided relational formulas into a single, cohesive, clinical paragraph. Do not invent outside facts, technologies, or numbers. You must obey the exact verbs and cause-and-effect paths provided, but combine them elegantly to avoid repetitive phrasing." 
             },
             { 
                 role: "user", 
@@ -421,6 +475,7 @@ async function handleConversation(text) {
     }
     
     isThinking = false;
+    sendTelemetry();
 }
 
 self.onmessage = function(e) {
@@ -471,8 +526,28 @@ self.onmessage = function(e) {
         tx.objectStore('memory').clear();
 
         tx.oncomplete = () => {
+            sendTelemetry("OFFLINE (WIPED)");
             postMessage({ type: 'MATRIX_WIPED' });
         };
+    }
+    else if (type === 'REQUEST_EXPORT') {
+        if (!isReady || !brain) return;
+        
+        let totalEdges = 0;
+        if (nextAvailableNode > 0) {
+            const lens = brain.export_edge_lens(nextAvailableNode);
+            for (let i = 0; i < lens.length; i++) totalEdges += lens[i];
+        }
+        
+        const exportState = {
+            nodes: nextAvailableNode,
+            totalWordsIngested,
+            edges_count: totalEdges,
+            dictionary: Array.from(dictionary.entries()),
+            wordFrequencies: Array.from(wordFrequencies.entries())
+        };
+        
+        postMessage({ type: 'EXPORT_DATA', payload: exportState });
     }
 };
 

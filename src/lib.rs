@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use js_sys::Math;
 
 const RESTING_POTENTIAL: f32 = 0.2;
-const MAX_WEIGHT: f32 = 10000.0; // UNCAPPED: Allow true Hebbian bonds to grow exponentially
+const MAX_WEIGHT: f32 = 10000.0; // CAPPED: Prevent runaway Hebbian bonds from blowing up into the trillions
 
 #[wasm_bindgen]
 pub struct SpikingNetwork {
@@ -11,7 +11,6 @@ pub struct SpikingNetwork {
     v: Vec<f32>,
     trace: Vec<f32>,
     leak: Vec<f32>,
-    plast: Vec<f32>,
     fatigue: Vec<f32>,
     global_dopamine: f32,
     edge_ptrs: Vec<usize>,
@@ -26,16 +25,15 @@ impl SpikingNetwork {
     #[wasm_bindgen(constructor)]
     pub fn new(num_nodes: usize) -> Self {
         let mut leak = vec![0.0; num_nodes];
-        let mut plast = vec![0.0; num_nodes];
 
         for i in 0..num_nodes {
             let pct = i as f32 / num_nodes as f32;
             if pct < 0.4 {
-                leak[i] = 4.0; plast[i] = 0.2;
+                leak[i] = 4.0;
             } else if pct < 0.8 {
-                leak[i] = 0.5; plast[i] = 0.08;
+                leak[i] = 0.5;
             } else {
-                leak[i] = 0.02; plast[i] = 0.02;
+                leak[i] = 0.02;
             }
         }
 
@@ -44,7 +42,7 @@ impl SpikingNetwork {
             num_active_nodes: 0, // <--- Initialize to zero
             v: vec![RESTING_POTENTIAL; num_nodes],
             trace: vec![0.0; num_nodes],
-            leak, plast,
+            leak,
             fatigue: vec![0.0; num_nodes],
             global_dopamine: 1.0,
             edge_ptrs: (0..num_nodes).map(|i| i * 4).collect(),
@@ -100,10 +98,9 @@ impl SpikingNetwork {
                 let weight = self.edge_weight[idx];
                 self.v[target] += weight / dilution_factor;
 
-                if learning && self.trace[target] > 0.1 {
-                    let increase = self.plast[target] * 25.0 * self.global_dopamine;
-                    self.create_synapse(target, src, increase);
-                }
+                // BLIND STDP REMOVED: 
+                // Javascript now explicitly drives Hebbian learning using semantic 
+                // vector similarities! The SNN only handles voltage propagation and decay.
             }
         }
 
@@ -149,11 +146,10 @@ impl SpikingNetwork {
             if l > max_len { max_len = l; }
         }
         
-        // THE GOLDILOCKS CURVE (Perfected for Secondary Stop-Words)
-        // Core threshold set to 3% to naturally demote obscure words, while letting domains rise.
-        // Hub threshold set to 8% to catch secondary stop-words (which, these) that previously evaded the 20% mark.
-        let core_threshold = f32::max(3.0, max_len * 0.03);
-        let hub_threshold = f32::max(12.0, max_len * 0.08);
+        // THE GOLDILOCKS CURVE (Aggressive Grammar Crushing)
+        // Minimum thresholds lowered so structural noise is crushed even in tiny text files!
+        let core_threshold = f32::max(2.0, max_len * 0.05);
+        let hub_threshold = f32::max(6.0, max_len * 0.15);
 
         for t in 0..ticks {
             // OPTIMIZED INJECTION: Pulse strongly a few times to start the cascade, then let the matrix resonate naturally
@@ -199,7 +195,7 @@ impl SpikingNetwork {
                     let weight = self.edge_weight[idx];
                     
                     let target_len = self.edge_lens[target] as f32;
-                    let target_penalty = f32::max(1.0, (target_len / hub_threshold).powf(3.0));
+                    let target_penalty = f32::max(1.0, (target_len / hub_threshold).powf(5.0));
 
                     sim_v[target] += (weight / dispersion_factor) / target_penalty;
                 }
@@ -236,14 +232,17 @@ impl SpikingNetwork {
             let core_bonus_a = f32::min(2.0, (len_a as f32 / core_threshold).powf(0.5));
             let core_bonus_b = f32::min(2.0, (len_b as f32 / core_threshold).powf(0.5));
 
-            let hub_penalty_a = f32::max(1.0, (len_a as f32 / hub_threshold).powf(3.0));
-            let hub_penalty_b = f32::max(1.0, (len_b as f32 / hub_threshold).powf(3.0));
+            let hub_penalty_a = f32::max(1.0, (len_a as f32 / hub_threshold).powf(5.0));
+            let hub_penalty_b = f32::max(1.0, (len_b as f32 / hub_threshold).powf(5.0));
 
             // HEBBIAN SUPREMACY + THE GOLDILOCKS TOPOLOGY:
-            // Squaring the maximum weight enforces that repeated, concentrated bonds 
-            // obliterate random, one-off stop-word bonds.
-            let score_a = ((a.1 as f32) * max_w_a.powf(2.0) * core_bonus_a) / hub_penalty_a;
-            let score_b = ((b.1 as f32) * max_w_b.powf(2.0) * core_bonus_b) / hub_penalty_b;
+            // By applying the hub penalty BEFORE squaring the weight, we ensure that 
+            // massive structural noise is mathematically crushed rather than exponentially inflated!
+            let penalized_w_a = max_w_a / hub_penalty_a;
+            let score_a = (a.1 as f32) * penalized_w_a.powf(2.0) * core_bonus_a;
+            
+            let penalized_w_b = max_w_b / hub_penalty_b;
+            let score_b = (b.1 as f32) * penalized_w_b.powf(2.0) * core_bonus_b;
             score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
         });
 
@@ -265,7 +264,10 @@ impl SpikingNetwork {
         if node_index < self.num_active_nodes { self.v[node_index] } else { 0.0 }
     }
 
-    pub fn flood_dopamine(&mut self) { self.global_dopamine += 15.0; }
+    pub fn flood_dopamine(&mut self) { 
+        self.global_dopamine += 5.0; 
+        if self.global_dopamine > 50.0 { self.global_dopamine = 50.0; }
+    }
 
     pub fn inject_voltage(&mut self, node_index: usize, amount: f32) {
         if node_index < self.num_active_nodes { self.v[node_index] += amount; }
@@ -343,7 +345,7 @@ impl SpikingNetwork {
         for (i, &v) in data.iter().enumerate() { self.edge_weight[i] = v; }
     }
     #[wasm_bindgen]
-    pub fn get_causal_topology(&self, active_nodes: &[u32], inject_nodes: &[u32]) -> Vec<f32> {
+    pub fn get_causal_topology(&self, active_nodes: &[u32], query_nodes: &[u32]) -> Vec<f32> {
         let mut topology = Vec::new();
         // Use a 64-bit pair to track undirected edges and prevent redundant A->B and B->A duplication
         let mut seen_edges = std::collections::HashSet::new();
@@ -357,11 +359,10 @@ impl SpikingNetwork {
             if l > max_len { max_len = l; }
         }
         
-        // THE GOLDILOCKS CURVE (Perfected for Secondary Stop-Words)
-        // Core threshold set to 3% to gracefully reward domains without over-exalting them.
-        // Hub threshold set to 8% to confidently crush secondary stop-words.
-        let core_threshold = f32::max(3.0, max_len * 0.03);
-        let hub_threshold = f32::max(12.0, max_len * 0.08);
+        // THE GOLDILOCKS CURVE (Aggressive Grammar Crushing)
+        // Minimum thresholds lowered so structural noise is crushed even in tiny text files!
+        let core_threshold = f32::max(2.0, max_len * 0.05);
+        let hub_threshold = f32::max(6.0, max_len * 0.15);
         
         // Store all valid edges globally: (src, target, raw_weight, global_score)
         let mut all_edges: Vec<(usize, usize, f32, f32)> = Vec::new();
@@ -375,14 +376,8 @@ impl SpikingNetwork {
             // Prevent rare query words from hijacking the graph if they haven't formed enough edges.
             if len < min_edges { continue; }
 
-            let is_input_src = inject_nodes.contains(&(src as u32));
-            
-            // CONSCIOUS OVERRIDE: User queried nodes bypass the source hub penalty
-            let src_hub_penalty = if is_input_src { 
-                1.0 
-            } else { 
-                f32::max(1.0, ((len as f32) / hub_threshold).powf(3.0)) 
-            };
+            // Applies the raw penalty to suppress structural words
+            let src_hub_penalty = f32::max(1.0, ((len as f32) / hub_threshold).powf(5.0));
             
             let src_core_bonus = f32::min(2.0, ((len as f32) / core_threshold).powf(0.5));
             
@@ -405,17 +400,31 @@ impl SpikingNetwork {
                 let target_len = self.edge_lens[target] as f32;
                 let dst_core_bonus = f32::min(2.0, (target_len / core_threshold).powf(0.5));
                 
-                let is_input_dst = inject_nodes.contains(&(target as u32));
-                let dst_hub_penalty = if is_input_dst {
-                    1.0
-                } else {
-                    f32::max(1.0, (target_len / hub_threshold).powf(3.0))
-                };
+                let dst_hub_penalty = f32::max(1.0, (target_len / hub_threshold).powf(5.0));
                 
                 // SYNERGISTIC SEMANTIC SCORE (Hebbian Supremacy):
-                // Squaring the physical weight mathematically guarantees that words which repeatedly 
-                // form concentrated bonds (domains) obliterate words that form random, dispersed bonds (noise).
-                let semantic_score = (weight.powf(2.0) * src_core_bonus * dst_core_bonus) / (src_hub_penalty * dst_hub_penalty);
+                // Applying the hub penalty to the raw weight BEFORE squaring it prevents the 
+                // mathematical paradox of exponential stop-word inflation.
+                let penalized_weight = weight / (src_hub_penalty * dst_hub_penalty);
+                let mut semantic_score = penalized_weight.powf(2.0) * src_core_bonus * dst_core_bonus;
+
+                // CONSCIOUS ANCHOR: Magnify gravity for edges directly connected to the user's query.
+                // We use addition rather than multiplication to prevent two frequent query nodes from exponentially feeding off each other.
+                let mut anchor_multiplier = 1.0;
+                
+                // ACTIVATION ENERGY (Hitchhiker Shield): The conscious anchor can only hoist bonds 
+                // that have already proven physical significance. Grammatical ghosts with weak 
+                // incidental weights are ignored and allowed to naturally decay!
+                if weight > 15.0 {
+                    if query_nodes.contains(&(src_idx as u32)) {
+                        anchor_multiplier += 49.0;
+                    }
+                    if query_nodes.contains(&(target as u32)) {
+                        anchor_multiplier += 49.0;
+                    }
+                }
+
+                semantic_score *= anchor_multiplier;
 
                 // SEMANTIC EVENT HORIZON: Only edges with a score >= 400.0 have the gravity to survive.
                 if is_active_target && weight > 1.0 && target != src_idx && semantic_score >= 400.0 {
