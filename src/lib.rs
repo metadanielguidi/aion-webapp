@@ -374,9 +374,11 @@ impl SpikingNetwork {
             let ptr = self.edge_ptrs[src_idx];
             let len = self.edge_lens[src_idx];
             
+            let is_query_src = query_nodes.contains(&(src_idx as u32));
+
             // THE OBSCURE SOURCE FILTER:
-            // Prevent rare query words from hijacking the graph if they haven't formed enough edges.
-            if len < min_edges { continue; }
+            // Prevent rare words from hijacking the graph UNLESS explicitly queried!
+            if len < min_edges && !is_query_src { continue; }
 
             // Applies the raw penalty to suppress structural words
             let src_hub_penalty = f32::max(1.0, ((len as f32) / hub_threshold).powf(5.0));
@@ -391,10 +393,11 @@ impl SpikingNetwork {
                 let weight = self.edge_weight[idx];
                 
                 let is_active_target = active_nodes.contains(&(target as u32));
+                let is_query_tgt = query_nodes.contains(&(target as u32));
                 
                 // DYNAMIC STRUCTURAL ANCHOR: Prevent the graph from anchoring to 
-                // obscure rare words just because they have a low hub penalty.
-                if self.edge_lens[target] < min_edges { continue; }
+                // obscure rare words UNLESS they are queried or connected to a query.
+                if self.edge_lens[target] < min_edges && !is_query_tgt && !is_query_src { continue; }
 
                 // THE GOLDILOCKS TOPOLOGY FILTER:
                 // 1. Core Bonus: Rewards established domain concepts (10-40 edges)
@@ -414,16 +417,14 @@ impl SpikingNetwork {
                 // We use addition rather than multiplication to prevent two frequent query nodes from exponentially feeding off each other.
                 let mut anchor_multiplier = 1.0;
                 
-                // ACTIVATION ENERGY (Hitchhiker Shield): The conscious anchor can only hoist bonds 
-                // that have already proven physical significance. Grammatical ghosts with weak 
-                // incidental weights are ignored and allowed to naturally decay!
-                if weight > 15.0 {
-                    if query_nodes.contains(&(src_idx as u32)) && (len as f32) < structural_shield_limit {
-                        anchor_multiplier += 49.0;
-                    }
-                    if query_nodes.contains(&(target as u32)) && (target_len as f32) < structural_shield_limit {
-                        anchor_multiplier += 49.0;
-                    }
+                // FOCAL GRAVITY (Conscious Anchor): The user's query generates massive focal gravity.
+                // The `structural_shield_limit` prevents stop-words from hijacking this. We bypass 
+                // the raw weight shield because niche queries need help piercing the background domain!
+                if is_query_src && (len as f32) < structural_shield_limit {
+                    anchor_multiplier += 499.0;
+                }
+                if is_query_tgt && (target_len as f32) < structural_shield_limit {
+                    anchor_multiplier += 499.0;
                 }
 
                 semantic_score *= anchor_multiplier;
@@ -447,7 +448,7 @@ impl SpikingNetwork {
             // This forces the matrix to walk the causal chain rather than radiating 12 edges from a single queried node!
             top_targets.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
             
-            for (target, weight, score, edge_pair) in top_targets.into_iter().take(2) {
+            for (target, weight, score, edge_pair) in top_targets.into_iter().take(3) {
                 seen_edges.insert(edge_pair);
                 all_edges.push((src_idx, target, weight, score));
             }
@@ -463,10 +464,10 @@ impl SpikingNetwork {
             let src_deg = *degree_count.get(&src).unwrap_or(&0);
             let tgt_deg = *degree_count.get(&target).unwrap_or(&0);
             
-            // GLOBAL DEGREE CAP (Preventing the Inverse Star Topology)
-            // By enforcing that no single concept can participate in more than 3 edges, 
-            // we guarantee a deep, cascading topological chain instead of a shallow star!
-            if src_deg < 3 && tgt_deg < 3 {
+            // GLOBAL DEGREE CAP 
+            // Increased to 4 to allow deeper intersecting domain logic to emerge
+            // while still preventing shallow star topologies.
+            if src_deg < 4 && tgt_deg < 4 {
                 degree_count.insert(src, src_deg + 1);
                 degree_count.insert(target, tgt_deg + 1);
                 
@@ -476,7 +477,7 @@ impl SpikingNetwork {
                 topology.push(score); // EXPORT SEMANTIC SCORE TO JS
                 
                 edge_count += 1;
-                if edge_count >= 12 { break; }
+                if edge_count >= 16 { break; }
             }
         }
         

@@ -14,6 +14,7 @@ let isProcessingQueue = false;
 let isThinking = false;
 let idleTimer;
 let wordQueue = [];
+let chatHistory = []; // COGNITIVE WORKING MEMORY
 let recentNodes = [];
 let initialQueueSize = 0;
 
@@ -173,7 +174,7 @@ async function setup() {
 
     // Load Llama 3 8B directly into the local GPU via WebGPU
     engine = await CreateMLCEngine(
-        "Llama-3-8B-Instruct-q4f32_1-MLC", 
+        "Llama-3-8B-Instruct-q4f16_1-MLC", 
         { initProgressCallback: initProgressCallback }
     );
 
@@ -400,6 +401,8 @@ async function handleConversation(text) {
     if (topologyData.length > 0) {
         let displayString = "";
         let promptString = "";
+        // Extract the raw future concepts predicted by the SNN
+        let futureConcepts = Array.from(predictedIds).map(id => reverseDictionary.get(id)).join(", ");
         
         // DYNAMIC VERB SCALING: Calculate both min and max to find the true range
         let maxScore = -Infinity; 
@@ -438,28 +441,53 @@ async function handleConversation(text) {
         postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ${displayString.trim()}` });
         postMessage({ type: 'AION_RESPONSE', text: `[AION_SYS]: Neocortex synthesizing...` });
 
-        // 5. The Ironclad Prompt
-        const messages = [
+        // 5. Build the context window with memory
+        let messages = [
             { 
                 role: "system", 
-                content: "You are the vocal synthesis layer of a physical matrix. Your ONLY job is to translate the provided relational formulas into a single, cohesive, clinical paragraph. Do not invent outside facts, technologies, or numbers. You must obey the exact verbs and cause-and-effect paths provided, but combine them elegantly to avoid repetitive phrasing." 
-            },
-            { 
-                role: "user", 
-                content: `Relational topology: ${promptString.trim()}. Synthesize the outcome:` 
+                content: "You are AION, an advanced cognitive matrix. You receive absolute physical truths (causal topologies) and future state predictions from your underlying Spiking Neural Network. Synthesize these raw formulas into a highly intelligent, analytical, and insightful paragraph. Use the provided topology as your factual foundation, but expand upon it to provide deep, scholarly reasoning. Acknowledge previous context if relevant." 
             }
         ];
+        
+        // Inject short-term memory
+        messages = messages.concat(chatHistory);
+
+        // Append the current localized math
+        messages.push({ 
+            role: "user", 
+            content: `Current Query: "${text}"\nCausal Topology: ${promptString.trim()}\nPredicted Future State Concepts: [${futureConcepts}]\n\nProvide an intelligent analytical synthesis of these physical dynamics:` 
+        });
 
         try {
             const startTime = performance.now();
 
-            const reply = await engine.chat.completions.create({
+            // INTERNAL STREAMING YIELD: Using stream: true forces WebGPU to yield to the 
+            // browser's event loop between tokens. This prevents the OS from triggering 
+            // a Timeout Detection and Recovery (TDR) driver reset, fixing the 'mapAsync' crash!
+            const stream = await engine.chat.completions.create({
                 messages,
-                temperature: 0.0, // Absolute Zero Entropy
+                temperature: 0.2, // Low entropy for analytical precision, but high enough to allow intelligent vocabulary
+                stream: true,
             });
 
+            postMessage({ type: 'AION_STREAM_START' });
+
+            let finalResponse = "";
+            for await (const chunk of stream) {
+                const textChunk = chunk.choices[0]?.delta?.content || "";
+                finalResponse += textChunk;
+                postMessage({ type: 'AION_STREAM_CHUNK', text: textChunk });
+            }
+            finalResponse = finalResponse.trim();
+
             const timeTaken = ((performance.now() - startTime) / 1000).toFixed(1);
-            postMessage({ type: 'AION_RESPONSE', text: `[AION]: ${reply.choices[0].message.content.trim()} [Synthesized in ${timeTaken}s]` });
+            
+            // Update cognitive memory (keep last 4 interactions to save context window space)
+            chatHistory.push({ role: "user", content: text });
+            chatHistory.push({ role: "assistant", content: finalResponse });
+            if (chatHistory.length > 8) chatHistory.splice(0, 2);
+
+            postMessage({ type: 'AION_STREAM_END', text: `[Synthesized in ${timeTaken}s]` });
 
         } catch (err) {
             postMessage({ type: 'AION_RESPONSE', text: `[VOICEBOX ERROR]: Neural synthesis failed. ${err.message}` });
@@ -505,6 +533,7 @@ self.onmessage = function(e) {
         // 1. KILL THE GHOSTS: Stop all background saves and metabolism
         clearTimeout(idleTimer);
         isProcessingQueue = false;
+        chatHistory = [];
         wordQueue = [];
         recentNodes = [];
 

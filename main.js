@@ -8,6 +8,7 @@ const fileUpload = document.getElementById('file-upload');
 const resetBtn = document.getElementById('reset-btn');
 const canvas = document.getElementById('visual-cortex');
 const ctx = canvas.getContext('2d');
+let currentStreamNode = null; // Tracks the active streaming message
 
 // --- THE VISUAL CORTEX (Topology Graph) ---
 let nodes = [];
@@ -130,6 +131,28 @@ worker.onmessage = function(e) {
         }
 
     } 
+    else if (type === 'AION_STREAM_START') {
+        currentStreamNode = document.createElement('div');
+        currentStreamNode.className = 'message oracle-message';
+        currentStreamNode.innerHTML = `<span class="tag oracle-tag">[AION]:</span> <span class="content"></span>`;
+        chatBox.appendChild(currentStreamNode);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    else if (type === 'AION_STREAM_CHUNK') {
+        if (currentStreamNode) {
+            const contentSpan = currentStreamNode.querySelector('.content');
+            contentSpan.innerHTML += text.replace(/\n/g, '<br>');
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+    else if (type === 'AION_STREAM_END') {
+        if (currentStreamNode) {
+            const contentSpan = currentStreamNode.querySelector('.content');
+            contentSpan.innerHTML += ` <span style="opacity: 0.5;">${text}</span>`;
+            currentStreamNode = null;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
     else if (type === 'NEW_CONCEPT') {
         addNodeToGraph(word);
     } 

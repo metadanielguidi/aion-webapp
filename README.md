@@ -10,20 +10,21 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 
 * **The Temporal Matrix (Hippocampus):** A massive-scale Spiking Neural Network (SNN) written in **Rust** and compiled to **WebAssembly (WASM)**. It models time, causality, and entropy.
 * **The Sensory Cortex (Embeddings):** Powered by `transformers.js` running the `Xenova/all-MiniLM-L6-v2` ONNX model. It translates raw human language into 384-dimensional mathematical vectors for the SNN.
-* **The Neocortical Synthesis (Voicebox):** Powered by **WebGPU** via `@mlc-ai/web-llm`. AION runs a quantized 8-Billion parameter Llama 3 model directly on your local graphics card to synthesize the SNN's raw physical edge formulas into intelligent, hallucination-free human language.
+* **The Neocortical Synthesis (Voicebox):** Powered by **WebGPU** via `@mlc-ai/web-llm`. AION streams a quantized 8-Billion parameter Llama 3 model (f16 KV cache) directly from your local graphics card to provide real-time, highly analytical synthesis of the SNN's physical edge formulas.
 * **The Visual Cortex:** A highly optimized HTML5 Canvas 2D physics engine that renders the SNN's semantic topology and temporal connections in real-time.
 * **Memory:** Persistent IndexedDB storage. AION caches both its multi-gigabyte Neocortex and its evolving network topology locally.
 
 ## 🧬 Core Philosophy
 
-* **Zero Epicycles:** AION does not use rigid "Assistant" roleplay prompts. The Llama 3 model acts as a pure grammatical extension of the SNN, forcing synergistic causality rather than disconnected text prediction.
+* **Zero Epicycles:** AION does not use rigid "Assistant" roleplay prompts. The Llama 3 model acts as a reasoning extension of the SNN, synthesizing the underlying math into deep analytical insights rather than disconnected text prediction.
 * **Dynamic Habituation (Zero Hardcoded Filters):** AION does not use hardcoded English dictionaries or stop-word filters. Every word enters the matrix. The Spiking Neural Network naturally learns to habituate to structural noise (like "the" or "and") by dynamically scaling focal voltage penalties based on a node's topological edge count, mathematically mimicking human subconscious attention.
 * **100% Offline & Private:** Once the models are cached to your browser, AION can run entirely air-gapped.
 
 ## 🌀 Emergent Network Dynamics
 
 To prevent structural noise from overwhelming true semantic domains, AION employs several mathematically derived constraints:
-* **Cognitive Working Memory Window:** AION ingests text using a flattened sliding window, mapping dense semantic webs rather than simple linear chains, which allows the matrix to naturally bridge concepts across filler words.
+* **Cognitive Working Memory Window:** AION ingests text using a flattened sliding window, mapping dense semantic webs rather than simple linear chains. It also maintains a conversational context window, allowing you to ask cascading follow-up questions without the matrix experiencing "amnesia."
+* **Conscious Focal Gravity:** When you query the matrix, the specific queried concepts bypass standard decay shields and receive a massive focal voltage injection (`499.0x`). This allows hyper-specific niche concepts (like "proton") to pierce through the background noise of massive documents.
 * **The Goldilocks Curve:** A scale-invariant topology filter that mathematically rewards true domain concepts (e.g., "physics", "energy") with core multipliers, while applying massive exponential hub penalties to both primary and secondary stop-words based on the evolving maximum density of the graph.
 * **Hebbian Supremacy & The Semantic Event Horizon:** Physical synaptic weights are squared to enforce non-linear concentration. Any causal edge that fails to exceed the 400.0 "Semantic Event Horizon" score is annihilated, ensuring only the most profound mathematical truths are sent to the Neocortex for synthesis.
 
@@ -33,7 +34,7 @@ Standard Large Language Models (LLMs) do not actually reason; they predict the m
 
 AION solves this by separating **causation** from **translation**. 
 
-Instead of asking the LLM to guess connections, the Spiking Neural Network (SNN) calculates a strict, deterministic vector cascade and extracts explicit **relational edges** directly from its memory arrays (e.g., `[production(forces)cost]`). The WebGPU Llama 3 model is locked to `0.0` entropy (temperature) and structurally constrained to act *only* as a grammatical translator for that mathematical topology. By feeding the LLM hardcoded subjects and verbs, it is trapped in a grammatical cage, eliminating hallucinations and enabling genuine, emergent causal logic.
+Instead of asking the LLM to guess connections, the Spiking Neural Network (SNN) calculates a strict, deterministic vector cascade and extracts explicit **relational edges** directly from its memory arrays (e.g., `[production(forces)cost]`). The WebGPU Llama 3 model is constrained to low entropy (`0.2` temperature) and acts as an analytical reasoning engine over that exact mathematical topology. By feeding the LLM hardcoded, physically proven subjects and verbs, it eliminates hallucinations and enables genuine, emergent causal logic.
 
 ## ⚙️ Hardware & Software Requirements
 
