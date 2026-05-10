@@ -40,8 +40,8 @@ Instead of asking a neural net to "guess" connections, AION's Spiking Neural Net
 
 Because AION has jettisoned the LLM bloat, it is incredibly lightweight and operates instantly on almost any machine:
 
-* **Browser:** A modern, WebGPU-enabled browser (Google Chrome or Microsoft Edge recommended). Safari and Firefox require experimental flags.
-* **Secure Context:** WebGPU and Web Workers require a secure context. You **cannot** open the `index.html` file directly from your file system. It must be served via a local HTTP server (`localhost` or `127.0.0.1`).
+* **Browser:** Any modern web browser (Google Chrome, Firefox, Safari, Microsoft Edge).
+* **Secure Context:** Web Workers require a secure context. You **cannot** open the `index.html` file directly from your file system. It must be served via a local HTTP server (`localhost` or `127.0.0.1`).
 
 ## 🚀 Installation & Boot Sequence
 
@@ -64,7 +64,3 @@ Because AION has jettisoned the LLM bloat, it is incredibly lightweight and oper
 * **Bulk Ingestion:** Use the `Upload Temporal Data` button to feed AION `.txt` files. The SNN will build its semantic topology (visible in the background) based on the causal sequences in the text.
 * **Querying:** Type concepts directly into the terminal (e.g., `what is bitcoin?`). The SNN will extract the relational edges, and the Algorithmic Voicebox will synthesize the physical outcome. If the concepts do not exist in its memory, it will explicitly state that no semantic anchors were found.
 * **Tabula Rasa:** Click `HARD RESET MATRIX` to obliterate the current IndexedDB memory state, clearing the SNN's topology and dynamic habituation maps. (This does *not* delete the cached ONNX model).
-
----
-
-*Note: Running AION heavily utilizes local GPU resources. Expect high hardware utilization and fan speeds during prolonged cognitive metabolism.*
