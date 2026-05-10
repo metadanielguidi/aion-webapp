@@ -1,6 +1,6 @@
 # AION: Synergistic Cognitive Matrix
 
-AION is a 100% offline, browser-native Artificial General Intelligence (AGI) experiment. It abandons traditional "chatbot" architectures in favor of a continuous physical framework, bridging a temporal physics engine (Spiking Neural Network) with a WebGPU-accelerated Neocortex (Llama 3).
+AION is a 100% offline, browser-native Artificial General Intelligence (AGI) experiment. It abandons traditional "chatbot" architectures in favor of a continuous physical framework, driven entirely by a temporal physics engine (Spiking Neural Network).
 
 There are no APIs, no cloud servers, no Chatbot constraints, and no LLMs. AION relies exclusively on pure continuous mathematical graph extraction to synthesize temporal causality.
 
@@ -18,7 +18,7 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 
 * **Zero Chatbots:** Standard AGI architectures rely on pre-trained LLMs to act as a "brain", dragging along immense human bias, safety filters, and hallucinations. AION eliminates the LLM completely, forcing the physical network to speak for itself.
 * **Dynamic Habituation (Zero Hardcoded Filters):** AION does not use hardcoded English dictionaries or stop-word filters. Every word enters the matrix. The Spiking Neural Network naturally learns to habituate to structural noise (like "the" or "and") by dynamically scaling focal voltage penalties based on a node's topological edge count, mathematically mimicking human subconscious attention.
-* **100% Offline & Private:** Once the models are cached to your browser, AION can run entirely air-gapped.
+* **100% Offline & Private:** Once the ONNX embedding model is cached to your browser, AION can run entirely air-gapped.
 
 ## 🌀 Emergent Network Dynamics
 
@@ -62,8 +62,8 @@ Because AION has jettisoned the LLM bloat, it is incredibly lightweight and oper
 ## 📡 Operating Protocols
 
 * **Bulk Ingestion:** Use the `Upload Temporal Data` button to feed AION `.txt` files. The SNN will build its semantic topology (visible in the background) based on the causal sequences in the text.
-* **Querying:** Type concepts directly into the terminal (e.g., `Project the future outcome of the market`). The SNN will extract the relational edges, and the WebGPU Neocortex will synthesize the physical outcome.
-* **Tabula Rasa:** Click `HARD RESET MATRIX` to obliterate the current IndexedDB memory state, clearing the SNN's topology and dynamic habituation maps. (This does *not* delete the cached Llama 3 model).
+* **Querying:** Type concepts directly into the terminal (e.g., `what is bitcoin?`). The SNN will extract the relational edges, and the Algorithmic Voicebox will synthesize the physical outcome. If the concepts do not exist in its memory, it will explicitly state that no semantic anchors were found.
+* **Tabula Rasa:** Click `HARD RESET MATRIX` to obliterate the current IndexedDB memory state, clearing the SNN's topology and dynamic habituation maps. (This does *not* delete the cached ONNX model).
 
 ---
 

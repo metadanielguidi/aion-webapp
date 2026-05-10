@@ -25,7 +25,13 @@ resizeCanvas();
 function addNodeToGraph(word) {
     // Cap the number of visual nodes to prevent O(N^2) rendering lag
     if (nodes.length > 250) {
-        nodes.shift();
+        // Prevent shifting out currently active/queried nodes
+        const removeIdx = nodes.findIndex(n => !n.isQueried);
+        if (removeIdx !== -1) {
+            nodes.splice(removeIdx, 1);
+        } else {
+            nodes.shift();
+        }
     }
     
     nodes.push({
@@ -33,7 +39,8 @@ function addNodeToGraph(word) {
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         vx: (Math.random() - 0.5) * 2,
-        vy: (Math.random() - 0.5) * 2
+        vy: (Math.random() - 0.5) * 2,
+        isQueried: false // Tracks conscious attention
     });
 }
 
@@ -65,6 +72,14 @@ function animateTopology() {
             let distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance < connectionDistance) {
+                // Draw queried connections in bright blue
+                if (n1.isQueried || n2.isQueried) {
+                    ctx.strokeStyle = 'rgba(0, 204, 255, 0.4)';
+                    ctx.lineWidth = 1.5;
+                } else {
+                    ctx.strokeStyle = 'rgba(0, 255, 0, 0.15)';
+                    ctx.lineWidth = 1;
+                }
                 ctx.beginPath();
                 ctx.moveTo(n1.x, n1.y);
                 ctx.lineTo(n2.x, n2.y);
@@ -73,15 +88,23 @@ function animateTopology() {
         }
 
         // Draw the Node
-        ctx.fillStyle = '#00ff00';
+        ctx.fillStyle = n1.isQueried ? '#00ccff' : '#00ff00';
         ctx.beginPath();
-        ctx.arc(n1.x, n1.y, nodeRadius, 0, Math.PI * 2);
+        ctx.arc(n1.x, n1.y, n1.isQueried ? nodeRadius * 2 : nodeRadius, 0, Math.PI * 2);
+        
+        if (n1.isQueried) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00ccff';
+        }
         ctx.fill();
 
         // Draw the Word
-        ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
-        ctx.font = '10px monospace';
+        ctx.fillStyle = n1.isQueried ? '#00ccff' : 'rgba(0, 255, 0, 0.7)';
+        ctx.font = n1.isQueried ? 'bold 12px monospace' : '10px monospace';
         ctx.fillText(n1.word, n1.x + 6, n1.y + 3);
+        
+        // Reset shadow for next items
+        ctx.shadowBlur = 0;
     }
 
     requestAnimationFrame(animateTopology);
@@ -168,6 +191,17 @@ chatInput.addEventListener('keydown', (e) => {
         appendMessage('USER', text);
         chatInput.value = '';
         
+        // VISUAL CORTEX SYNC: Highlight queried nodes in neon blue
+        const queryWords = text.toLowerCase().match(/\b\w+\b/g) || [];
+        
+        // Ensure the queried words are actually on the canvas (they might have been shifted out)
+        queryWords.forEach(w => {
+            if (!nodes.find(n => n.word === w)) {
+                addNodeToGraph(w);
+            }
+        });
+        nodes.forEach(n => n.isQueried = queryWords.includes(n.word));
+
         // Route to the Native Conversational Handler
         worker.postMessage({ type: 'USER_QUERY', payload: text }); 
     }

@@ -361,7 +361,7 @@ async function handleConversation(text) {
     if (nodeIds.length === 0) {
         isThinking = false;
         sendTelemetry();
-        return postMessage({ type: 'AION_RESPONSE', text: "[ORACLE ERROR]: Zero semantic anchors found in memory for that query." });
+        return postMessage({ type: 'AION_RESPONSE', text: "[ORACLE ERROR]: Zero semantic anchors found. These concepts do not exist in the current physics layer. The matrix only knows what it has ingested!" });
     }
 
     if (mappedMsg !== "") {
