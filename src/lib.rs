@@ -364,6 +364,8 @@ impl SpikingNetwork {
         let core_threshold = f32::max(2.0, max_len * 0.05);
         let hub_threshold = f32::max(6.0, max_len * 0.15);
         
+        let structural_shield_limit = hub_threshold * 1.5;
+        
         // Store all valid edges globally: (src, target, raw_weight, global_score)
         let mut all_edges: Vec<(usize, usize, f32, f32)> = Vec::new();
 
@@ -416,10 +418,10 @@ impl SpikingNetwork {
                 // that have already proven physical significance. Grammatical ghosts with weak 
                 // incidental weights are ignored and allowed to naturally decay!
                 if weight > 15.0 {
-                    if query_nodes.contains(&(src_idx as u32)) {
+                    if query_nodes.contains(&(src_idx as u32)) && (len as f32) < structural_shield_limit {
                         anchor_multiplier += 49.0;
                     }
-                    if query_nodes.contains(&(target as u32)) {
+                    if query_nodes.contains(&(target as u32)) && (target_len as f32) < structural_shield_limit {
                         anchor_multiplier += 49.0;
                     }
                 }
