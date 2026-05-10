@@ -113,22 +113,7 @@ worker.onmessage = function(e) {
     const { type, payload, text, progress, word } = e.data;
 
     if (type === 'AION_RESPONSE') {
-        
-        // THE WEBGPU TERMINAL FILTER
-        // Prevents the massive Llama 3 download stream from flooding the chat
-        if (text.startsWith('[WEBGPU]:')) {
-            let gpuTracker = document.getElementById('gpu-tracker');
-            if (!gpuTracker) {
-                gpuTracker = document.createElement('div');
-                gpuTracker.id = 'gpu-tracker';
-                gpuTracker.className = 'message sys-message'; 
-                chatBox.appendChild(gpuTracker);
-            }
-            gpuTracker.innerHTML = `<span class="tag sys-tag">[AION_SYS]:</span> ${text}`;
-            chatBox.scrollTop = chatBox.scrollHeight;
-        } else {
-            appendMessage('ORACLE', text);
-        }
+        appendMessage('ORACLE', text);
 
     } 
     else if (type === 'AION_STREAM_START') {

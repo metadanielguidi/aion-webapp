@@ -156,10 +156,11 @@ impl SpikingNetwork {
             if t == 0 || t == 50 || t == 100 {
                 for &node in inject_nodes {
                     if (node as usize) < self.num_active_nodes { 
-                        // CONSCIOUS OVERRIDE: 
-                        // If the user explicitly queries a concept, it bypasses subconscious habituation.
-                        // It receives the full 15.0V focal injection to guarantee it anchors the cascade!
-                        sim_v[node as usize] += 15.0; 
+                        // CONTINUOUS INJECTION: We scale the injection voltage inversely by the hub penalty's square root.
+                        // True domains get high voltage, but massive structural noise is dampened.
+                        let edges = self.edge_lens[node as usize] as f32;
+                        let linear_penalty = f32::max(1.0, edges / hub_threshold);
+                        sim_v[node as usize] += 15.0 / linear_penalty.powf(0.5); 
                     } 
                 }
             }
@@ -195,7 +196,7 @@ impl SpikingNetwork {
                     let weight = self.edge_weight[idx];
                     
                     let target_len = self.edge_lens[target] as f32;
-                    let target_penalty = f32::max(1.0, (target_len / hub_threshold).powf(5.0));
+                    let target_penalty = f32::max(1.0, (target_len / hub_threshold).powf(4.0));
 
                     sim_v[target] += (weight / dispersion_factor) / target_penalty;
                 }
@@ -232,8 +233,8 @@ impl SpikingNetwork {
             let core_bonus_a = f32::min(2.0, (len_a as f32 / core_threshold).powf(0.5));
             let core_bonus_b = f32::min(2.0, (len_b as f32 / core_threshold).powf(0.5));
 
-            let hub_penalty_a = f32::max(1.0, (len_a as f32 / hub_threshold).powf(5.0));
-            let hub_penalty_b = f32::max(1.0, (len_b as f32 / hub_threshold).powf(5.0));
+            let hub_penalty_a = f32::max(1.0, (len_a as f32 / hub_threshold).powf(4.0));
+            let hub_penalty_b = f32::max(1.0, (len_b as f32 / hub_threshold).powf(4.0));
 
             // HEBBIAN SUPREMACY + THE GOLDILOCKS TOPOLOGY:
             // By applying the hub penalty BEFORE squaring the weight, we ensure that 
@@ -364,8 +365,6 @@ impl SpikingNetwork {
         let core_threshold = f32::max(2.0, max_len * 0.05);
         let hub_threshold = f32::max(6.0, max_len * 0.15);
         
-        let structural_shield_limit = hub_threshold * 1.5;
-        
         // Store all valid edges globally: (src, target, raw_weight, global_score)
         let mut all_edges: Vec<(usize, usize, f32, f32)> = Vec::new();
 
@@ -381,7 +380,11 @@ impl SpikingNetwork {
             if len < min_edges && !is_query_src { continue; }
 
             // Applies the raw penalty to suppress structural words
-            let src_hub_penalty = f32::max(1.0, ((len as f32) / hub_threshold).powf(5.0));
+            let mut src_hub_penalty = f32::max(1.0, ((len as f32) / hub_threshold).powf(4.0));
+            if is_query_src {
+                // CONSCIOUS EXEMPTION: Soften the penalty for explicitly queried nodes so they aren't crushed
+                src_hub_penalty = src_hub_penalty.powf(0.5);
+            }
             
             let src_core_bonus = f32::min(2.0, ((len as f32) / core_threshold).powf(0.5));
             
@@ -405,7 +408,10 @@ impl SpikingNetwork {
                 let target_len = self.edge_lens[target] as f32;
                 let dst_core_bonus = f32::min(2.0, (target_len / core_threshold).powf(0.5));
                 
-                let dst_hub_penalty = f32::max(1.0, (target_len / hub_threshold).powf(5.0));
+                let mut dst_hub_penalty = f32::max(1.0, (target_len / hub_threshold).powf(4.0));
+                if is_query_tgt {
+                    dst_hub_penalty = dst_hub_penalty.powf(0.5);
+                }
                 
                 // SYNERGISTIC SEMANTIC SCORE (Hebbian Supremacy):
                 // Applying the hub penalty to the raw weight BEFORE squaring it prevents the 
@@ -418,12 +424,11 @@ impl SpikingNetwork {
                 let mut anchor_multiplier = 1.0;
                 
                 // FOCAL GRAVITY (Conscious Anchor): The user's query generates massive focal gravity.
-                // The `structural_shield_limit` prevents stop-words from hijacking this. We bypass 
-                // the raw weight shield because niche queries need help piercing the background domain!
-                if is_query_src && (len as f32) < structural_shield_limit {
+                // Because we softened the hub penalty for queried nodes, we apply the full multiplier!
+                if is_query_src {
                     anchor_multiplier += 499.0;
                 }
-                if is_query_tgt && (target_len as f32) < structural_shield_limit {
+                if is_query_tgt {
                     anchor_multiplier += 499.0;
                 }
 

@@ -1,20 +1,16 @@
 import init, { SpikingNetwork } from './pkg/aion_core.js';
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
-// Import the WebGPU Engine
-import { CreateMLCEngine } from 'https://esm.run/@mlc-ai/web-llm';
 
 env.allowLocalModels = false; 
 
 let brain;
 let extractor; 
-let engine; // The WebGPU Neocortex
 let isIdle = true;
 let isReady = false;
 let isProcessingQueue = false;
 let isThinking = false;
 let idleTimer;
 let wordQueue = [];
-let chatHistory = []; // COGNITIVE WORKING MEMORY
 let recentNodes = [];
 let initialQueueSize = 0;
 
@@ -164,21 +160,7 @@ async function setup() {
     postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Booting ONNX Hippocampal Senses..." });
     extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', { quantized: true });
 
-    postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Initiating WebGPU Neocortical Bridge (Llama 3 8B)." });
-    postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: WARNING - Utilizing hardware plasticity. Caching 4.5GB matrix to IndexedDB. This will take several minutes on initial load." });
-    
-    const initProgressCallback = (initProgress) => {
-        // Stream the download/compilation progress directly to the terminal
-        postMessage({ type: 'AION_RESPONSE', text: `[WEBGPU]: ${initProgress.text}` });
-    };
-
-    // Load Llama 3 8B directly into the local GPU via WebGPU
-    engine = await CreateMLCEngine(
-        "Llama-3-8B-Instruct-q4f16_1-MLC", 
-        { initProgressCallback: initProgressCallback }
-    );
-
-    postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Neocortex crystallized into VRAM." });
+    postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Biological Voicebox initialized." });
 
     await init();
     await initDB();
@@ -210,7 +192,6 @@ function extractValidWords(rawStr, isLearning = false) {
 
     for (let w of words) {
         if (w.length <= 2) continue; // Keep the basic 2-letter filter
-        if (!isNaN(w)) continue; // Filter out raw numbers like "1153"
 
         if (isLearning) {
             totalWordsIngested++; 
@@ -439,59 +420,52 @@ async function handleConversation(text) {
         }
 
         postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ${displayString.trim()}` });
-        postMessage({ type: 'AION_RESPONSE', text: `[AION_SYS]: Neocortex synthesizing...` });
 
-        // 5. Build the context window with memory
-        let messages = [
-            { 
-                role: "system", 
-                content: "You are AION, an advanced cognitive matrix. You receive absolute physical truths (causal topologies) and future state predictions from your underlying Spiking Neural Network. Synthesize these raw formulas into a highly intelligent, analytical, and insightful paragraph. Use the provided topology as your factual foundation, but expand upon it to provide deep, scholarly reasoning. Acknowledge previous context if relevant." 
-            }
-        ];
+        // 5. THE ALGORITHMIC VOICEBOX
+        // The matrix speaks for itself natively without an LLM. 
+        const startTime = performance.now();
         
-        // Inject short-term memory
-        messages = messages.concat(chatHistory);
-
-        // Append the current localized math
-        messages.push({ 
-            role: "user", 
-            content: `Current Query: "${text}"\nCausal Topology: ${promptString.trim()}\nPredicted Future State Concepts: [${futureConcepts}]\n\nProvide an intelligent analytical synthesis of these physical dynamics:` 
-        });
-
-        try {
-            const startTime = performance.now();
-
-            // INTERNAL STREAMING YIELD: Using stream: true forces WebGPU to yield to the 
-            // browser's event loop between tokens. This prevents the OS from triggering 
-            // a Timeout Detection and Recovery (TDR) driver reset, fixing the 'mapAsync' crash!
-            const stream = await engine.chat.completions.create({
-                messages,
-                temperature: 0.2, // Low entropy for analytical precision, but high enough to allow intelligent vocabulary
-                stream: true,
-            });
-
-            postMessage({ type: 'AION_STREAM_START' });
-
-            let finalResponse = "";
-            for await (const chunk of stream) {
-                const textChunk = chunk.choices[0]?.delta?.content || "";
-                finalResponse += textChunk;
-                postMessage({ type: 'AION_STREAM_CHUNK', text: textChunk });
-            }
-            finalResponse = finalResponse.trim();
-
-            const timeTaken = ((performance.now() - startTime) / 1000).toFixed(1);
+        let sourceMap = new Map();
+        for (let i = 0; i < topologyData.length; i += 4) {
+            const srcWord = reverseDictionary.get(topologyData[i]);
+            const dstWord = reverseDictionary.get(topologyData[i+1]);
+            const score = topologyData[i+3];
             
-            // Update cognitive memory (keep last 4 interactions to save context window space)
-            chatHistory.push({ role: "user", content: text });
-            chatHistory.push({ role: "assistant", content: finalResponse });
-            if (chatHistory.length > 8) chatHistory.splice(0, 2);
+            const pct = (score - minScore) / scoreRange;
+            let verb = "interacts with";
+            if (pct >= 0.85) verb = "dictates";
+            else if (pct > 0.60) verb = "forces";
+            else if (pct > 0.40) verb = "drives";
+            else if (pct > 0.20) verb = "generates";
+            else if (pct > 0.05) verb = "influences";
 
-            postMessage({ type: 'AION_STREAM_END', text: `[Synthesized in ${timeTaken}s]` });
-
-        } catch (err) {
-            postMessage({ type: 'AION_RESPONSE', text: `[VOICEBOX ERROR]: Neural synthesis failed. ${err.message}` });
+            if (!sourceMap.has(srcWord)) sourceMap.set(srcWord, []);
+            sourceMap.get(srcWord).push(`${verb} ${dstWord}`);
         }
+
+        let sentences = [];
+        for (let [src, actions] of sourceMap.entries()) {
+            let actionStr = actions.length > 1 
+                ? actions.slice(0, -1).join(", ") + " and " + actions[actions.length - 1]
+                : actions[0];
+            sentences.push(`${src} ${actionStr}`);
+        }
+
+        let paragraph = "The matrix indicates that " + sentences.join(". Furthermore, ") + ".";
+        if (futureConcepts) {
+            paragraph += ` These causal bonds project towards emergent future states involving: ${futureConcepts}.`;
+        }
+        paragraph = paragraph.charAt(0).toUpperCase() + paragraph.slice(1);
+
+        // Simulate a rapid, deterministic typing stream for the UI
+        postMessage({ type: 'AION_STREAM_START' });
+        const wordsToType = paragraph.split(" ");
+        for (let w of wordsToType) {
+            postMessage({ type: 'AION_STREAM_CHUNK', text: w + " " });
+        }
+        
+        const timeTaken = ((performance.now() - startTime) / 1000).toFixed(3);
+        postMessage({ type: 'AION_STREAM_END', text: `[Synthesized algorithmically in ${timeTaken}s]` });
 
     } else {
         if (predictedIds.length > 0) {
@@ -533,7 +507,6 @@ self.onmessage = function(e) {
         // 1. KILL THE GHOSTS: Stop all background saves and metabolism
         clearTimeout(idleTimer);
         isProcessingQueue = false;
-        chatHistory = [];
         wordQueue = [];
         recentNodes = [];
 

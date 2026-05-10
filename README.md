@@ -2,7 +2,7 @@
 
 AION is a 100% offline, browser-native Artificial General Intelligence (AGI) experiment. It abandons traditional "chatbot" architectures in favor of a continuous physical framework, bridging a temporal physics engine (Spiking Neural Network) with a WebGPU-accelerated Neocortex (Llama 3).
 
-There are no APIs, no cloud servers, and no hardcoded personas. AION relies on raw local hardware plasticity to synthesize temporal causality.
+There are no APIs, no cloud servers, no Chatbot constraints, and no LLMs. AION relies exclusively on pure continuous mathematical graph extraction to synthesize temporal causality.
 
 ## 🧠 System Architecture
 
@@ -10,13 +10,13 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 
 * **The Temporal Matrix (Hippocampus):** A massive-scale Spiking Neural Network (SNN) written in **Rust** and compiled to **WebAssembly (WASM)**. It models time, causality, and entropy.
 * **The Sensory Cortex (Embeddings):** Powered by `transformers.js` running the `Xenova/all-MiniLM-L6-v2` ONNX model. It translates raw human language into 384-dimensional mathematical vectors for the SNN.
-* **The Neocortical Synthesis (Voicebox):** Powered by **WebGPU** via `@mlc-ai/web-llm`. AION streams a quantized 8-Billion parameter Llama 3 model (f16 KV cache) directly from your local graphics card to provide real-time, highly analytical synthesis of the SNN's physical edge formulas.
+* **The Algorithmic Motor Cortex (Voicebox):** A completely deterministic, zero-hallucination JavaScript graph synthesizer. It traverses the physics layer and seamlessly strings the relational nodes into natural English.
 * **The Visual Cortex:** A highly optimized HTML5 Canvas 2D physics engine that renders the SNN's semantic topology and temporal connections in real-time.
 * **Memory:** Persistent IndexedDB storage. AION caches both its multi-gigabyte Neocortex and its evolving network topology locally.
 
 ## 🧬 Core Philosophy
 
-* **Zero Epicycles:** AION does not use rigid "Assistant" roleplay prompts. The Llama 3 model acts as a reasoning extension of the SNN, synthesizing the underlying math into deep analytical insights rather than disconnected text prediction.
+* **Zero Chatbots:** Standard AGI architectures rely on pre-trained LLMs to act as a "brain", dragging along immense human bias, safety filters, and hallucinations. AION eliminates the LLM completely, forcing the physical network to speak for itself.
 * **Dynamic Habituation (Zero Hardcoded Filters):** AION does not use hardcoded English dictionaries or stop-word filters. Every word enters the matrix. The Spiking Neural Network naturally learns to habituate to structural noise (like "the" or "and") by dynamically scaling focal voltage penalties based on a node's topological edge count, mathematically mimicking human subconscious attention.
 * **100% Offline & Private:** Once the models are cached to your browser, AION can run entirely air-gapped.
 
@@ -34,31 +34,18 @@ Standard Large Language Models (LLMs) do not actually reason; they predict the m
 
 AION solves this by separating **causation** from **translation**. 
 
-Instead of asking the LLM to guess connections, the Spiking Neural Network (SNN) calculates a strict, deterministic vector cascade and extracts explicit **relational edges** directly from its memory arrays (e.g., `[production(forces)cost]`). The WebGPU Llama 3 model is constrained to low entropy (`0.2` temperature) and acts as an analytical reasoning engine over that exact mathematical topology. By feeding the LLM hardcoded, physically proven subjects and verbs, it eliminates hallucinations and enables genuine, emergent causal logic.
+Instead of asking a neural net to "guess" connections, AION's Spiking Neural Network calculates a strict, deterministic vector cascade and extracts explicit **relational edges** directly from its memory arrays. The matrix then organically translates this causal chain into absolute, un-hallucinated truth.
 
 ## ⚙️ Hardware & Software Requirements
 
-Because AION bypasses the CPU to run an 8B parameter model directly in the browser, your environment must meet strict requirements:
+Because AION has jettisoned the LLM bloat, it is incredibly lightweight and operates instantly on almost any machine:
 
 * **Browser:** A modern, WebGPU-enabled browser (Google Chrome or Microsoft Edge recommended). Safari and Firefox require experimental flags.
-* **Hardware:** A dedicated GPU or high-end integrated graphics with at least **4.5GB to 8GB of available VRAM/Unified Memory**.
 * **Secure Context:** WebGPU and Web Workers require a secure context. You **cannot** open the `index.html` file directly from your file system. It must be served via a local HTTP server (`localhost` or `127.0.0.1`).
 
 ## 🚀 Installation & Boot Sequence
 
-1. **Clone the Repository:** Ensure your directory structure is perfectly aligned:
-   ```text
-   /aion
-   ├── index.html
-   ├── main.js
-   ├── worker.js
-   ├── Cargo.toml
-   ├── src/
-   │   └── lib.rs
-   └── /pkg                 <-- Generated in Step 2
-       ├── aion_core.js
-       └── aion_core_bg.wasm
-   ```
+1. **Clone the Repository**
 
 2. **Compile the Matrix (Rust to WASM):** You must have `wasm-pack` installed. Open your terminal in the root directory and run:
    ```bash
@@ -71,8 +58,6 @@ Because AION bypasses the CPU to run an 8B parameter model directly in the brows
    * *Node.js:* Use `npx serve`.
 
 4. **Launch the Matrix:** Navigate to `http://localhost:8000` in your WebGPU-enabled browser.
-
-5. **The Initial Boot (Patience Required):** On the very first launch, the Web Worker will download the ~4.5GB Llama 3 model in chunks and compile it into WebGPU shaders. **This will take several minutes.** Progress is tracked in the UI terminal. Subsequent boots will load almost instantly from the IndexedDB cache.
 
 ## 📡 Operating Protocols
 
