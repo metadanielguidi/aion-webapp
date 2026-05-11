@@ -63,6 +63,31 @@ function cosineSimilarity(vecA, vecB) {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+function normalizeVector(vec) {
+    let norm = 0;
+    for (let i = 0; i < vec.length; i++) norm += vec[i] * vec[i];
+    norm = Math.sqrt(norm);
+    if (norm > 0) {
+        for (let i = 0; i < vec.length; i++) vec[i] /= norm;
+    }
+}
+
+function driftVectors(idA, idB, driftRate) {
+    let vecA = nodeVectors.get(idA);
+    let vecB = nodeVectors.get(idB);
+    if (!vecA || !vecB) return;
+
+    // Physically pull the foundational meanings of the two concepts toward each other
+    for (let i = 0; i < vecA.length; i++) {
+        let diff = vecB[i] - vecA[i];
+        vecA[i] += diff * driftRate;
+        vecB[i] -= diff * driftRate; 
+    }
+    // Re-normalize so they remain mathematically valid on the hypersphere
+    normalizeVector(vecA);
+    normalizeVector(vecB);
+}
+
 function initDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(dbName, 3); 
@@ -174,16 +199,58 @@ async function setup() {
 }
 
 function startCognitiveMetabolism() {
+    // The "Dream Cycle" - Simulates memory consolidation during idle states.
     setInterval(() => {
-        // Only pulse if we aren't resetting and have actual concepts
-        if (isIdle && !isProcessingQueue && nextAvailableNode > 10) {
-            let randomNode = Math.floor(Math.random() * nextAvailableNode);
-            brain.inject_voltage(randomNode, 2.0);
-            
-            // False = fire neurons, but SHIELD synapses from decay
-            brain.tick(0.1, false); 
+        if (isIdle && !isProcessingQueue && !isThinking && nextAvailableNode > 25) { // Need a critical mass of concepts to dream
+            dreamCycle();
         }
-    }, 100);
+        
+        // We still run a global decay tick. This is crucial. It ensures that
+        // weak, hypothetical "dream" bonds that don't get reinforced will naturally die.
+        // This is the "forgetting" part of learning.
+        brain.tick(0.1, true); 
+
+    }, 500); // A slower, more deliberate cycle than the rapid-fire ingestion ticks.
+}
+
+function dreamCycle() {
+    // 1. THE DAY RESIDUE EFFECT (REM SLEEP): 
+    // 50% of the time, the brain picks a concept it was actively thinking about recently 
+    // to consolidate short-term memory into long-term structures.
+    let nodeA;
+    if (recentNodes.length > 0 && Math.random() > 0.5) {
+        nodeA = recentNodes[Math.floor(Math.random() * recentNodes.length)];
+    } else {
+        nodeA = Math.floor(Math.random() * nextAvailableNode);
+    }
+    
+    let nodeB = Math.floor(Math.random() * nextAvailableNode);
+    while (nodeB === nodeA) {
+        nodeB = Math.floor(Math.random() * nextAvailableNode);
+    }
+
+    // 2. Simulate the future cascade resulting from their co-activation.
+    const dreamInput = new Uint32Array([nodeA, nodeB]);
+    const dreamscape = brain.simulate_future(dreamInput, 250); // A short, high-energy simulation.
+
+    // 3. Hebbian Learning: "Neurons that fire together, wire together."
+    // If the dream was "coherent" (i.e., it formed a resonant bridge to other concepts),
+    // we form a weak, hypothetical synaptic bond between the two seed nodes.
+    if (dreamscape.length > 0) {
+        const hypotheticalWeight = 1.0; // A very small initial bond, like a faint memory trace.
+        brain.create_synapse(nodeA, nodeB, hypotheticalWeight);
+        brain.create_synapse(nodeB, nodeA, hypotheticalWeight);
+        
+        // SEMANTIC PLASTICITY (INSIGHT INTEGRATION):
+        // AION redefines the literal meaning of words based on its own internal insights.
+        driftVectors(nodeA, nodeB, 0.02); // 2% heavy drift for a profound dream realization
+
+        const wordA = reverseDictionary.get(nodeA);
+        const wordB = reverseDictionary.get(nodeB);
+        const dreamConcepts = Array.from(dreamscape).slice(0, 5).map(id => reverseDictionary.get(id)).join(', ');
+        
+        postMessage({ type: 'AION_DREAM', text: `Co-activating '${wordA}' and '${wordB}' generated a resonant cascade involving: [${dreamConcepts}]. A hypothetical bond was formed, and their vectors drifted closer.` });
+    }
 }
 
 function extractValidWords(rawStr, isLearning = false) {
@@ -291,6 +358,12 @@ async function processQueueAsync() {
                 const backwardWeight = (5.0 / distance) * semanticMultiplier;
                 brain.create_synapse(prevNode, targetNodeIndex, forwardWeight); 
                 brain.create_synapse(targetNodeIndex, prevNode, backwardWeight); 
+                
+                // SEMANTIC PLASTICITY (SENSORY INTEGRATION): 
+                // Concepts read closely together gradually pull each other's foundational meaning over time.
+                if (distance <= 2) {
+                    driftVectors(prevNode, targetNodeIndex, 0.005); // 0.5% subtle drift per exposure
+                }
             }
             distance++;
         }

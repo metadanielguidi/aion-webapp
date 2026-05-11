@@ -114,6 +114,14 @@ animateTopology(); // Start the visual cortex
 
 // --- CHAT INTERFACE & LOGIC ---
 
+function scrollToBottom(force = false) {
+    // Only auto-scroll if the user is near the bottom, OR if we force it (like when sending a query)
+    const distanceToBottom = chatBox.scrollHeight - chatBox.clientHeight - chatBox.scrollTop;
+    if (force || distanceToBottom <= 50) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+}
+
 function appendMessage(sender, text) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${sender.toLowerCase()}-message`;
@@ -121,6 +129,8 @@ function appendMessage(sender, text) {
     // Formatting the tags for the Matrix aesthetic
     if (sender === 'USER') {
         msgDiv.innerHTML = `<span class="tag">[USER]:</span> ${text}`;
+    } else if (sender === 'DREAM') {
+        msgDiv.innerHTML = `<span class="tag dream-tag">[DREAM]:</span> ${text}`;
     } else if (sender === 'AION_SYS') {
         msgDiv.innerHTML = `<span class="tag sys-tag">[AION_SYS]:</span> ${text}`;
     } else {
@@ -128,7 +138,7 @@ function appendMessage(sender, text) {
     }
     
     chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    scrollToBottom(sender === 'USER'); // Force scroll if the user just sent a message
 }
 
 // 1. Core Worker Message Router
@@ -144,13 +154,13 @@ worker.onmessage = function(e) {
         currentStreamNode.className = 'message oracle-message';
         currentStreamNode.innerHTML = `<span class="tag oracle-tag">[AION]:</span> <span class="content"></span>`;
         chatBox.appendChild(currentStreamNode);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        scrollToBottom(true); // Force scroll when AION starts its response
     }
     else if (type === 'AION_STREAM_CHUNK') {
         if (currentStreamNode) {
             const contentSpan = currentStreamNode.querySelector('.content');
             contentSpan.innerHTML += text.replace(/\n/g, '<br>');
-            chatBox.scrollTop = chatBox.scrollHeight;
+            scrollToBottom();
         }
     }
     else if (type === 'AION_STREAM_END') {
@@ -158,8 +168,11 @@ worker.onmessage = function(e) {
             const contentSpan = currentStreamNode.querySelector('.content');
             contentSpan.innerHTML += ` <span style="opacity: 0.5;">${text}</span>`;
             currentStreamNode = null;
-            chatBox.scrollTop = chatBox.scrollHeight;
+            scrollToBottom();
         }
+    }
+    else if (type === 'AION_DREAM') {
+        appendMessage('DREAM', text);
     }
     else if (type === 'NEW_CONCEPT') {
         addNodeToGraph(word);
@@ -173,7 +186,7 @@ worker.onmessage = function(e) {
             chatBox.appendChild(progressTracker);
         }
         progressTracker.innerHTML = `<span class="tag sys-tag">[AION_SYS]:</span> Ingesting Temporal Data: ${progress}%`;
-        chatBox.scrollTop = chatBox.scrollHeight;
+        scrollToBottom();
         
         if (progress === 100) progressTracker.remove();
     } 
