@@ -231,7 +231,14 @@ function dreamCycle() {
 
     // 2. Simulate the future cascade resulting from their co-activation.
     const dreamInput = new Uint32Array([nodeA, nodeB]);
-    const dreamscape = brain.simulate_future(dreamInput, 250); // A short, high-energy simulation.
+    
+    // Construct the frequency array to pass to WASM
+    const nodeFreqs = new Uint32Array(nextAvailableNode);
+    for (let i = 0; i < nextAvailableNode; i++) {
+        const word = reverseDictionary.get(i);
+        nodeFreqs[i] = wordFrequencies.get(word) || 1;
+    }
+    const dreamscape = brain.simulate_future(dreamInput, 250, nodeFreqs); // A short, high-energy simulation.
 
     // 3. Hebbian Learning: "Neurons that fire together, wire together."
     // If the dream was "coherent" (i.e., it formed a resonant bridge to other concepts),
@@ -263,12 +270,17 @@ function extractValidWords(rawStr, isLearning = false) {
         if (isLearning) {
             totalWordsIngested++; 
             wordFrequencies.set(w, (wordFrequencies.get(w) || 0) + 1);
+            validWords.push(w);
+        } else {
+            // DYNAMIC ATTENTION (Listening Filter):
+            // If parsing a user query, automatically ignore words that the matrix has 
+            // learned are ubiquitous structural noise (e.g. > 0.5% of the total corpus).
+            if (totalWordsIngested > 10000) {
+                const freq = wordFrequencies.get(w) || 0;
+                if ((freq / totalWordsIngested) > 0.005) continue; // Skip "with", "does", etc.
+            }
+            validWords.push(w);
         }
-
-        // PURE DYNAMIC HABITUATION
-        // We no longer use hardcoded stop words. Every word enters the matrix,
-        // and the SNN naturally habituates to structural noise via focal voltage penalties.
-        validWords.push(w);
     }
     return validWords;
 }
@@ -443,14 +455,21 @@ async function handleConversation(text) {
 
     const uintIds = new Uint32Array(nodeIds);
     
+    // Construct the frequency array to pass to WASM
+    const nodeFreqs = new Uint32Array(nextAvailableNode);
+    for (let i = 0; i < nextAvailableNode; i++) {
+        const word = reverseDictionary.get(i);
+        nodeFreqs[i] = wordFrequencies.get(word) || 1;
+    }
+
     // 1. Run the temporal simulation to get the emergent future nodes
-    const predictedIds = brain.simulate_future(uintIds, 500);
+    const predictedIds = brain.simulate_future(uintIds, 500, nodeFreqs);
     
     // 2. Combine the initial concepts and predicted concepts
     const allActiveIds = new Uint32Array([...uintIds, ...predictedIds]);
     
     // 3. Extract the physical edges connecting them using your new Rust method
-    const topologyData = brain.get_causal_topology(allActiveIds, uintIds);
+    const topologyData = brain.get_causal_topology(allActiveIds, uintIds, nodeFreqs);
     
     if (topologyData.length > 0) {
         let displayString = "";

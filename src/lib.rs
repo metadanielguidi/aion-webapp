@@ -145,24 +145,23 @@ impl SpikingNetwork {
 
     /// --- PREDICTIVE CODING (THE ORACLE SANDBOX) ---
     #[wasm_bindgen]
-    pub fn simulate_future(&self, inject_nodes: &[u32], ticks: usize) -> Vec<u32> {
+    pub fn simulate_future(&self, inject_nodes: &[u32], ticks: usize, node_freqs: &[u32]) -> Vec<u32> {
         let mut sim_v = vec![RESTING_POTENTIAL; self.num_nodes];
         let mut sim_trace = vec![0.0; self.num_nodes];
         let mut sim_fatigue = vec![0.0; self.num_nodes];
         let mut spike_counts = vec![0; self.num_nodes];
         let dt = 0.1;
 
-        // DYNAMIC NETWORK METRICS: Find the maximum graph density to calculate relative thresholds
-        let mut max_len = 1.0f32;
+        // TRUE LINGUISTIC FREQUENCY: Base penalties on actual occurrences, not surviving edges.
+        let mut max_freq = 1.0f32;
         for i in 0..self.num_active_nodes {
-            let l = self.edge_lens[i] as f32;
-            if l > max_len { max_len = l; }
+            let f = if i < node_freqs.len() { node_freqs[i] as f32 } else { 1.0 };
+            if f > max_freq { max_freq = f; }
         }
         
-        // THE GOLDILOCKS CURVE (Aggressive Grammar Crushing)
-        // Minimum thresholds lowered so structural noise is crushed even in tiny text files!
-        let core_threshold = f32::max(2.0, max_len * 0.05);
-        let hub_threshold = f32::max(6.0, max_len * 0.15);
+        // Frequency thresholds (e.g., if max is 50,000, >1,000 occurrences is a massive hub)
+        let core_threshold = f32::max(2.0, max_freq * 0.005);
+        let hub_threshold = f32::max(10.0, max_freq * 0.02);
 
         for t in 0..ticks {
             // OPTIMIZED INJECTION: Pulse strongly a few times to start the cascade, then let the matrix resonate naturally
@@ -171,8 +170,8 @@ impl SpikingNetwork {
                     if (node as usize) < self.num_active_nodes { 
                         // CONTINUOUS INJECTION: We scale the injection voltage inversely by the hub penalty's square root.
                         // True domains get high voltage, but massive structural noise is dampened.
-                        let edges = self.edge_lens[node as usize] as f32;
-                        let linear_penalty = f32::max(1.0, edges / hub_threshold);
+                        let freq = if (node as usize) < node_freqs.len() { node_freqs[node as usize] as f32 } else { 1.0 };
+                        let linear_penalty = f32::max(1.0, freq / hub_threshold);
                         sim_v[node as usize] += 15.0 / linear_penalty.powf(0.5); 
                     } 
                 }
@@ -201,29 +200,25 @@ impl SpikingNetwork {
                 let ptr = self.edge_ptrs[src];
                 let len = self.edge_lens[src];
 
-                let dispersion_factor = f32::max(1.0, (len as f32 / core_threshold).powf(0.5));
+                let src_freq = if src < node_freqs.len() { node_freqs[src] as f32 } else { 1.0 };
+                let dispersion_factor = f32::max(1.0, (src_freq / core_threshold).powf(0.5));
 
                 for i in 0..len {
                     let idx = ptr + i;
                     let target = self.edge_dst[idx];
                     let weight = self.edge_weight[idx];
                     
-                    let target_len = self.edge_lens[target] as f32;
-                    let target_penalty = f32::max(1.0, (target_len / hub_threshold).powf(4.0));
+                    let target_freq = if target < node_freqs.len() { node_freqs[target] as f32 } else { 1.0 };
+                    let target_penalty = f32::max(1.0, (target_freq / hub_threshold).powf(4.0));
 
                     sim_v[target] += (weight / dispersion_factor) / target_penalty;
                 }
             }
         }
 
-        let min_edges = if self.num_active_nodes < 200 { 1 } else { 3 };
-
         let mut predictions: Vec<(usize, u32)> = spike_counts.into_iter()
             .enumerate()
             .filter(|(i, _)| !inject_nodes.contains(&(*i as u32)))
-            // DYNAMIC STRUCTURAL ANCHOR: Small toy matrices allow 1 edge, while 
-            // large adult matrices require 3+ to filter out obscure noise.
-            .filter(|(i, _)| self.edge_lens[*i] >= min_edges)
             .collect();
         
         predictions.sort_by(|a, b| {
@@ -243,11 +238,14 @@ impl SpikingNetwork {
                 if w > max_w_b { max_w_b = w; }
             }
 
-            let core_bonus_a = f32::min(2.0, (len_a as f32 / core_threshold).powf(0.5));
-            let core_bonus_b = f32::min(2.0, (len_b as f32 / core_threshold).powf(0.5));
+            let freq_a = if a.0 < node_freqs.len() { node_freqs[a.0] as f32 } else { 1.0 };
+            let freq_b = if b.0 < node_freqs.len() { node_freqs[b.0] as f32 } else { 1.0 };
 
-            let hub_penalty_a = f32::max(1.0, (len_a as f32 / hub_threshold).powf(4.0));
-            let hub_penalty_b = f32::max(1.0, (len_b as f32 / hub_threshold).powf(4.0));
+            let core_bonus_a = f32::min(2.0, (freq_a / core_threshold).powf(0.5));
+            let core_bonus_b = f32::min(2.0, (freq_b / core_threshold).powf(0.5));
+
+            let hub_penalty_a = f32::max(1.0, (freq_a / hub_threshold).powf(4.0));
+            let hub_penalty_b = f32::max(1.0, (freq_b / hub_threshold).powf(4.0));
 
             // HEBBIAN SUPREMACY + THE GOLDILOCKS TOPOLOGY:
             // By applying the hub penalty BEFORE squaring the weight, we ensure that 
@@ -359,24 +357,20 @@ impl SpikingNetwork {
         for (i, &v) in data.iter().enumerate() { self.edge_weight[i] = v; }
     }
     #[wasm_bindgen]
-    pub fn get_causal_topology(&self, active_nodes: &[u32], query_nodes: &[u32]) -> Vec<f32> {
+    pub fn get_causal_topology(&self, active_nodes: &[u32], query_nodes: &[u32], node_freqs: &[u32]) -> Vec<f32> {
         let mut topology = Vec::new();
         // Use a 64-bit pair to track undirected edges and prevent redundant A->B and B->A duplication
         let mut seen_edges = std::collections::HashSet::new();
         
-        let min_edges = if self.num_active_nodes < 200 { 1 } else { 3 };
-
-        // DYNAMIC NETWORK METRICS: Ensure the Goldilocks curve scales with graph size
-        let mut max_len = 1.0f32;
+        let mut max_freq = 1.0f32;
         for i in 0..self.num_active_nodes {
-            let l = self.edge_lens[i] as f32;
-            if l > max_len { max_len = l; }
+            let f = if i < node_freqs.len() { node_freqs[i] as f32 } else { 1.0 };
+            if f > max_freq { max_freq = f; }
         }
         
-        // THE GOLDILOCKS CURVE (Aggressive Grammar Crushing)
-        // Minimum thresholds lowered so structural noise is crushed even in tiny text files!
-        let core_threshold = f32::max(2.0, max_len * 0.05);
-        let hub_threshold = f32::max(6.0, max_len * 0.15);
+        // THE GOLDILOCKS CURVE (True Linguistic Frequency)
+        let core_threshold = f32::max(2.0, max_freq * 0.005);
+        let hub_threshold = f32::max(10.0, max_freq * 0.02);
         
         // Store all valid edges globally: (src, target, raw_weight, global_score)
         let mut all_edges: Vec<(usize, usize, f32, f32)> = Vec::new();
@@ -388,18 +382,15 @@ impl SpikingNetwork {
             
             let is_query_src = query_nodes.contains(&(src_idx as u32));
 
-            // THE OBSCURE SOURCE FILTER:
-            // Prevent rare words from hijacking the graph UNLESS explicitly queried!
-            if len < min_edges && !is_query_src { continue; }
-
             // Applies the raw penalty to suppress structural words
-            let mut src_hub_penalty = f32::max(1.0, ((len as f32) / hub_threshold).powf(4.0));
+            let src_freq = if src_idx < node_freqs.len() { node_freqs[src_idx] as f32 } else { 1.0 };
+            let mut src_hub_penalty = f32::max(1.0, (src_freq / hub_threshold).powf(4.0));
             if is_query_src {
                 // CONSCIOUS EXEMPTION: Soften the penalty for explicitly queried nodes so they aren't crushed
                 src_hub_penalty = src_hub_penalty.powf(0.5);
             }
             
-            let src_core_bonus = f32::min(2.0, ((len as f32) / core_threshold).powf(0.5));
+            let src_core_bonus = f32::min(2.0, (src_freq / core_threshold).powf(0.5));
             
             let mut top_targets = Vec::new();
 
@@ -411,17 +402,11 @@ impl SpikingNetwork {
                 let is_active_target = active_nodes.contains(&(target as u32));
                 let is_query_tgt = query_nodes.contains(&(target as u32));
                 
-                // DYNAMIC STRUCTURAL ANCHOR: Prevent the graph from anchoring to 
-                // obscure rare words UNLESS they are queried or connected to a query.
-                if self.edge_lens[target] < min_edges && !is_query_tgt && !is_query_src { continue; }
-
                 // THE GOLDILOCKS TOPOLOGY FILTER:
-                // 1. Core Bonus: Rewards established domain concepts (10-40 edges)
-                // 2. Hub Penalty: Crushes massive structural noise like "the" (100+ edges)
-                let target_len = self.edge_lens[target] as f32;
-                let dst_core_bonus = f32::min(2.0, (target_len / core_threshold).powf(0.5));
+                let target_freq = if target < node_freqs.len() { node_freqs[target] as f32 } else { 1.0 };
+                let dst_core_bonus = f32::min(2.0, (target_freq / core_threshold).powf(0.5));
                 
-                let mut dst_hub_penalty = f32::max(1.0, (target_len / hub_threshold).powf(4.0));
+                let mut dst_hub_penalty = f32::max(1.0, (target_freq / hub_threshold).powf(4.0));
                 if is_query_tgt {
                     dst_hub_penalty = dst_hub_penalty.powf(0.5);
                 }
