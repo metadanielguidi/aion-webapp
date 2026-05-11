@@ -113,9 +113,22 @@ impl SpikingNetwork {
                 while j < len {
                     let idx = ptr + j;
                     let mut w = self.edge_weight[idx];
-                    w -= w * 0.001 * dt; 
                     
-                    if w <= 0.0 {
+                    // MYELINATION & PRUNING (Long-Term Memory Consolidation):
+                    // Simulates years of structured learning. Massive foundational bonds are 
+                    // protected, while weak, fleeting noise is aggressively deleted.
+                    let decay_rate = if w > 1000.0 {
+                        0.00005 // Core Curriculum (Myelinated): Almost immune to decay
+                    } else if w > 100.0 {
+                        0.0005  // Established Knowledge: Slow decay
+                    } else {
+                        0.005   // Fleeting Memory: Decays rapidly if not reinforced
+                    };
+                    
+                    // Subtract proportional decay AND a flat constant to guarantee true forgetting
+                    w -= (w * decay_rate * dt) + (0.01 * dt); 
+                    
+                    if w <= 0.1 { // True Pruning Threshold
                         let last_idx = ptr + len - 1;
                         self.edge_dst[idx] = self.edge_dst[last_idx];
                         self.edge_weight[idx] = self.edge_weight[last_idx];
@@ -436,11 +449,9 @@ impl SpikingNetwork {
 
                 // SEMANTIC EVENT HORIZON: Only edges with a score >= 400.0 have the gravity to survive.
                 if is_active_target && weight > 1.0 && target != src_idx && semantic_score >= 400.0 {
-                    let edge_pair = if src_idx < target { 
-                        ((src_idx as u64) << 32) | (target as u64) 
-                    } else { 
-                        ((target as u64) << 32) | (src_idx as u64) 
-                    };
+                    // CAUSAL DIRECTIONALITY: We strictly track A -> B as a directed edge.
+                    // This is essential for the Algorithmic Voicebox to formulate linear time-based sentences!
+                    let edge_pair = ((src_idx as u64) << 32) | (target as u64);
                     
                     if !seen_edges.contains(&edge_pair) {
                         top_targets.push((target, weight, semantic_score, edge_pair));

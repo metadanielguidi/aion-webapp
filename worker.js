@@ -498,7 +498,10 @@ async function handleConversation(text) {
         // The matrix speaks for itself natively without an LLM. 
         const startTime = performance.now();
         
-        let sourceMap = new Map();
+        let graph = new Map();
+        let inDegree = new Map();
+        let allNodes = new Set();
+        
         for (let i = 0; i < topologyData.length; i += 4) {
             const srcWord = reverseDictionary.get(topologyData[i]);
             const dstWord = reverseDictionary.get(topologyData[i+1]);
@@ -512,23 +515,85 @@ async function handleConversation(text) {
             else if (pct > 0.20) verb = "generates";
             else if (pct > 0.05) verb = "influences";
 
-            if (!sourceMap.has(srcWord)) sourceMap.set(srcWord, []);
-            sourceMap.get(srcWord).push(`${verb} ${dstWord}`);
+            if (!graph.has(srcWord)) graph.set(srcWord, []);
+            graph.get(srcWord).push({ dst: dstWord, verb, pct });
+            
+            if (!inDegree.has(dstWord)) inDegree.set(dstWord, 0);
+            if (!inDegree.has(srcWord)) inDegree.set(srcWord, 0);
+            inDegree.set(dstWord, inDegree.get(dstWord) + 1);
+            
+            allNodes.add(srcWord);
+            allNodes.add(dstWord);
         }
 
+        // 1. Identify Root Causes (Nodes that act, but are not acted upon)
+        let roots = [];
+        for (let node of allNodes) {
+            if (inDegree.get(node) === 0 && graph.has(node)) roots.push(node);
+        }
+        // Fallback: If everything is a cyclical loop, start at the most influential node
+        if (roots.length === 0 && graph.size > 0) {
+            let bestNode = Array.from(graph.keys())[0];
+            let maxOut = 0;
+            for (let [k, v] of graph.entries()) {
+                if (v.length > maxOut) { maxOut = v.length; bestNode = k; }
+            }
+            roots.push(bestNode);
+        }
+
+        let visited = new Set();
         let sentences = [];
-        for (let [src, actions] of sourceMap.entries()) {
-            let actionStr = actions.length > 1 
-                ? actions.slice(0, -1).join(", ") + " and " + actions[actions.length - 1]
-                : actions[0];
-            sentences.push(`${src} ${actionStr}`);
+
+        // 2. Recursive Causal Chaining (Building dependent clauses)
+        function traverse(node, depth) {
+            if (visited.has(node)) return "";
+            visited.add(node);
+            
+            let edges = graph.get(node);
+            if (!edges || edges.length === 0) return node;
+
+            // Sort edges so the strongest physical mechanisms are spoken first
+            edges.sort((a, b) => b.pct - a.pct);
+            
+            let descriptions = [];
+            for (let edge of edges) {
+                let nextStr = traverse(edge.dst, depth + 1);
+                
+                if (nextStr === edge.dst) {
+                    descriptions.push(`${edge.verb} ${edge.dst}`);
+                } else if (nextStr !== "") {
+                    // Language Syntax: Linking multi-hop logic
+                    if (depth === 0) {
+                        descriptions.push(`${edge.verb} ${edge.dst}, which in turn ${nextStr}`);
+                    } else {
+                        descriptions.push(`${edge.verb} ${edge.dst} (ultimately leading to ${nextStr})`);
+                    }
+                } else {
+                    descriptions.push(`${edge.verb} ${edge.dst}`);
+                }
+            }
+            
+            if (descriptions.length === 1) return descriptions[0];
+            if (descriptions.length === 2) return descriptions.join(" and ");
+            return descriptions.slice(0, -1).join(", ") + ", and " + descriptions[descriptions.length - 1];
         }
 
-        let paragraph = "The matrix indicates that " + sentences.join(". Furthermore, ") + ".";
-        if (futureConcepts) {
-            paragraph += ` These causal bonds project towards emergent future states involving: ${futureConcepts}.`;
+        for (let root of roots) {
+            let chain = traverse(root, 0);
+            if (chain && chain !== root) {
+                sentences.push(`${root} ${chain}`);
+            }
         }
-        paragraph = paragraph.charAt(0).toUpperCase() + paragraph.slice(1);
+
+        let paragraph = "";
+        if (sentences.length > 0) {
+            paragraph = sentences.map(s => s.charAt(0).toUpperCase() + s.slice(1) + ".").join(" ");
+            if (futureConcepts) {
+                paragraph += ` These foundational dynamics indicate emergent future states involving: ${futureConcepts}.`;
+            }
+        } else {
+            paragraph = "The matrix detects resonance, but the causal topology is too densely entangled to extract a linear narrative.";
+        }
 
         // Simulate a rapid, deterministic typing stream for the UI
         postMessage({ type: 'AION_STREAM_START' });

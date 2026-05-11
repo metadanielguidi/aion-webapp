@@ -10,7 +10,7 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 
 * **The Temporal Matrix (Hippocampus):** A massive-scale Spiking Neural Network (SNN) written in **Rust** and compiled to **WebAssembly (WASM)**. It models time, causality, and entropy.
 * **The Sensory Cortex (Embeddings):** Powered by `transformers.js` running the `Xenova/all-MiniLM-L6-v2` ONNX model. It translates raw human language into 384-dimensional mathematical vectors for the SNN.
-* **The Algorithmic Motor Cortex (Voicebox):** A completely deterministic, zero-hallucination JavaScript graph synthesizer. It traverses the physics layer and seamlessly strings the relational nodes into natural English.
+* **The Algorithmic Motor Cortex (Broca's Area):** A completely deterministic, zero-hallucination JavaScript graph synthesizer. It utilizes a Depth-First Search (DFS) algorithm to traverse the directed causal topology from root to effect, dynamically generating fluent, compound-complex sentences.
 * **The Visual Cortex:** A highly optimized HTML5 Canvas 2D physics engine that renders the SNN's semantic topology and temporal connections in real-time.
 * **Memory:** Persistent IndexedDB storage. AION caches both its multi-gigabyte Neocortex and its evolving network topology locally.
 
@@ -26,8 +26,10 @@ To prevent structural noise from overwhelming true semantic domains, AION employ
 * **Cognitive Working Memory Window:** AION ingests text using a flattened sliding window, mapping dense semantic webs rather than simple linear chains. It also maintains a conversational context window, allowing you to ask cascading follow-up questions without the matrix experiencing "amnesia."
 * **The Dream Cycle (Memory Consolidation):** While idle, the matrix actively co-activates concepts from its "Day Residue" to simulate hypothetical cascades. If a coherent topological bridge is formed, it establishes novel insights entirely on its own.
 * **Semantic Plasticity (Vector Drifting):** Standard AI models have frozen understandings of words. AION dynamically mutates the foundational 384-dimensional math of its sensory vocabulary based on its own text exposure and internal dreams, developing a completely subjective understanding of reality over time.
+* **Myelination & True Pruning (Long-Term Memory Consolidation):** The Spiking Neural Network simulates years of biological learning. Massive foundational bonds (core curriculum) become "myelinated" and almost immune to decay, while weak, fleeting noise is aggressively pruned and forgotten, allowing the matrix to grow a stable, compounding intelligence.
 * **Conscious Focal Gravity:** When you query the matrix, the specific queried concepts bypass standard decay shields and receive a massive focal voltage injection (`499.0x`). This allows hyper-specific niche concepts (like "proton") to pierce through the background noise of massive documents.
 * **The Goldilocks Curve:** A scale-invariant topology filter that mathematically rewards true domain concepts (e.g., "physics", "energy") with core multipliers, while applying massive exponential hub penalties to both primary and secondary stop-words based on the evolving maximum density of the graph.
+* **Directed Causal Arrows:** The matrix strictly preserves the arrow of time. A -> B is tracked distinctly from B -> A, allowing the graph traversal algorithm to read the physics layer linearly from root causes to final emergent effects.
 * **Hebbian Supremacy & The Semantic Event Horizon:** Physical synaptic weights are squared to enforce non-linear concentration. Any causal edge that fails to exceed the 400.0 "Semantic Event Horizon" score is annihilated, ensuring only the most profound mathematical truths are sent to the Neocortex for synthesis.
 
 ## ⚖️ AION vs. Pure LLMs
@@ -36,7 +38,7 @@ Standard Large Language Models (LLMs) do not actually reason; they predict the m
 
 AION solves this by separating **causation** from **translation**. 
 
-Instead of asking a neural net to "guess" connections, AION's Spiking Neural Network calculates a strict, deterministic vector cascade and extracts explicit **relational edges** directly from its memory arrays. The matrix then organically translates this causal chain into absolute, un-hallucinated truth.
+Instead of asking a neural net to "guess" connections, AION's Spiking Neural Network calculates a strict, deterministic vector cascade and extracts explicitly directed **causal arrows** directly from its memory arrays. The DFS algorithmic voicebox then traces this logic waterfall from root causes to final effects, generating absolute, un-hallucinated truth.
 
 ## ⚙️ Hardware & Software Requirements
 
