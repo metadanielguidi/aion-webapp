@@ -117,18 +117,23 @@ impl SpikingNetwork {
                     // MYELINATION & PRUNING (Long-Term Memory Consolidation):
                     // Simulates years of structured learning. Massive foundational bonds are 
                     // protected, while weak, fleeting noise is aggressively deleted.
-                    let decay_rate = if w > 1000.0 {
+                    let abs_w = w.abs();
+                    let decay_rate = if abs_w > 1000.0 {
                         0.00005 // Core Curriculum (Myelinated): Almost immune to decay
-                    } else if w > 100.0 {
+                    } else if abs_w > 100.0 {
                         0.0005  // Established Knowledge: Slow decay
                     } else {
                         0.005   // Fleeting Memory: Decays rapidly if not reinforced
                     };
                     
-                    // Subtract proportional decay AND a flat constant to guarantee true forgetting
-                    w -= (w * decay_rate * dt) + (0.01 * dt); 
+                    // Decay pushes the weight back towards zero, whether positive or negative
+                    if w > 0.0 {
+                        w -= (w * decay_rate * dt) + (0.01 * dt); 
+                    } else {
+                        w += (abs_w * decay_rate * dt) + (0.01 * dt);
+                    }
                     
-                    if w <= 0.1 { // True Pruning Threshold
+                    if w.abs() <= 0.1 { // True Pruning Threshold handles both fading excitation and fading inhibition
                         let last_idx = ptr + len - 1;
                         self.edge_dst[idx] = self.edge_dst[last_idx];
                         self.edge_weight[idx] = self.edge_weight[last_idx];
@@ -226,7 +231,7 @@ impl SpikingNetwork {
             let len_a = self.edge_lens[a.0];
             let mut max_w_a = 1.0f32;
             for i in 0..len_a {
-                let w = self.edge_weight[ptr_a + i];
+                let w = self.edge_weight[ptr_a + i].abs();
                 if w > max_w_a { max_w_a = w; }
             }
             
@@ -234,7 +239,7 @@ impl SpikingNetwork {
             let len_b = self.edge_lens[b.0];
             let mut max_w_b = 1.0f32;
             for i in 0..len_b {
-                let w = self.edge_weight[ptr_b + i];
+                let w = self.edge_weight[ptr_b + i].abs();
                 if w > max_w_b { max_w_b = w; }
             }
 
@@ -296,12 +301,13 @@ impl SpikingNetwork {
         for i in 0..len {
             let idx = ptr + i;
             if self.edge_dst[idx] == dst {
-                self.edge_weight[idx] = f32::min(MAX_WEIGHT, self.edge_weight[idx] + adjusted_delta);
+                let new_weight = self.edge_weight[idx] + adjusted_delta;
+                self.edge_weight[idx] = new_weight.clamp(-MAX_WEIGHT, MAX_WEIGHT);
                 return;
             }
         }
 
-        if adjusted_delta <= 0.0 { return; }
+        if adjusted_delta.abs() <= 0.001 { return; } // Accept new negative (inhibitory) bonds
 
         if len < self.edge_caps[src] {
             let idx = ptr + len;
@@ -415,7 +421,7 @@ impl SpikingNetwork {
                 // Applying the hub penalty to the raw weight BEFORE squaring it prevents the 
                 // mathematical paradox of exponential stop-word inflation.
                 let penalized_weight = weight / (src_hub_penalty * dst_hub_penalty);
-                let mut semantic_score = penalized_weight.powf(2.0) * src_core_bonus * dst_core_bonus;
+                let mut semantic_score = penalized_weight.abs().powf(2.0) * src_core_bonus * dst_core_bonus;
 
                 // CONSCIOUS ANCHOR: Magnify gravity for edges directly connected to the user's query.
                 // We use addition rather than multiplication to prevent two frequent query nodes from exponentially feeding off each other.
@@ -432,8 +438,8 @@ impl SpikingNetwork {
 
                 semantic_score *= anchor_multiplier;
 
-                // SEMANTIC EVENT HORIZON: Only edges with a score >= 400.0 have the gravity to survive.
-                if is_active_target && weight > 1.0 && target != src_idx && semantic_score >= 400.0 {
+                // SEMANTIC EVENT HORIZON: Allow both powerful excitatory (> 1.0) and inhibitory (< -1.0) bonds
+                if is_active_target && weight.abs() > 1.0 && target != src_idx && semantic_score >= 400.0 {
                     // CAUSAL DIRECTIONALITY: We strictly track A -> B as a directed edge.
                     // This is essential for the Algorithmic Voicebox to formulate linear time-based sentences!
                     let edge_pair = ((src_idx as u64) << 32) | (target as u64);

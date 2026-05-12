@@ -13,6 +13,8 @@ let idleTimer;
 let wordQueue = [];
 let recentNodes = [];
 let initialQueueSize = 0;
+let pendingQuery = null;
+let conversationalMemory = [];
 
 const nodeVectors = new Map(); 
 let dictionary = new Map();
@@ -260,6 +262,38 @@ function dreamCycle() {
     }
 }
 
+function targetedDreamCycle(nodeA, nodeB) {
+    const dreamInput = new Uint32Array([nodeA, nodeB]);
+    const nodeFreqs = new Uint32Array(nextAvailableNode);
+    for (let i = 0; i < nextAvailableNode; i++) {
+        const word = reverseDictionary.get(i);
+        nodeFreqs[i] = wordFrequencies.get(word) || 1;
+    }
+    const dreamscape = brain.simulate_future(dreamInput, 250, nodeFreqs);
+
+    const hypotheticalWeight = 100.0; // Increased massively to guarantee survival past the Semantic Event Horizon
+    brain.create_synapse(nodeA, nodeB, hypotheticalWeight);
+    brain.create_synapse(nodeB, nodeA, hypotheticalWeight);
+    driftVectors(nodeA, nodeB, 0.05); // Force vector alignment
+
+    const wordA = reverseDictionary.get(nodeA);
+    const wordB = reverseDictionary.get(nodeB);
+
+    if (dreamscape.length > 0) {
+        const dreamConcepts = Array.from(dreamscape)
+            .map(id => reverseDictionary.get(id))
+            .filter(w => w && !QUERY_STOP_WORDS.has(w) && !conflictConcepts.has(w))
+            .slice(0, 5)
+            .join(', ');
+        postMessage({ type: 'AION_DREAM', text: `Targeted co-activation of '${wordA}' and '${wordB}' generated a resonant cascade involving: [${dreamConcepts}]. A forced conceptual bridge was established.` });
+    } else {
+        postMessage({ type: 'AION_DREAM', text: `Targeted co-activation of '${wordA}' and '${wordB}' yielded no immediate resonance. Forcing a novel synaptic bridge.` });
+    }
+}
+
+const QUERY_STOP_WORDS = new Set(['and', 'the', 'with', 'from', 'what', 'how', 'why', 'who', 'this', 'that', 'then', 'than', 'are', 'was', 'has', 'had', 'have', 'been', 'does', 'did', 'for', 'about', 'happens', 'into', 'onto', 'upon', 'will', 'would', 'could', 'should', 'shall', 'can', 'may', 'might', 'must', 'which', 'where', 'when', 'there', 'their', 'they', 'them', 'these', 'those', 'some', 'many', 'much', 'very']);
+const conflictConcepts = new Set(["destroys", "opposes", "prevents", "suppresses", "crushes", "blocks", "hinders", "deters", "extinguishes", "kills", "against", "anti"]);
+
 function extractValidWords(rawStr, isLearning = false) {
     const words = rawStr.toLowerCase().match(/\b\w+\b/g) || [];
     const validWords = [];
@@ -272,6 +306,9 @@ function extractValidWords(rawStr, isLearning = false) {
             wordFrequencies.set(w, (wordFrequencies.get(w) || 0) + 1);
             validWords.push(w);
         } else {
+            // PRAGMATIC SHIELD: Prevent basic structural words from becoming supercharged query anchors
+            if (QUERY_STOP_WORDS.has(w)) continue;
+
             // DYNAMIC ATTENTION (Listening Filter):
             // If parsing a user query, automatically ignore words that the matrix has 
             // learned are ubiquitous structural noise (e.g. > 0.5% of the total corpus).
@@ -361,10 +398,26 @@ async function processQueueAsync() {
                     sim = cosineSimilarity(currentVec, prevVec);
                 }
                 
-                // STEEP SEMANTIC CLIFF: Dense embedding models mathematically cluster syntactic roles (prepositions/articles).
-                // By raising the cliff to 0.45, we ensure that base grammatical structures fall into the void,
-                // while true contextually related domains bond effortlessly!
-                let semanticMultiplier = sim >= 0.45 ? sim * 3.0 : 0.01;
+                // STEEP SEMANTIC CLIFF: Dense embedding models mathematically cluster syntactic roles.
+                // RESTORED BALANCE: Widen the excitatory net so AION can properly ingest Wikipedia.
+                let semanticMultiplier;
+                if (sim >= 0.40) {
+                    semanticMultiplier = sim * 3.0; // Excitatory bond
+                } else if (sim < 0.15) {
+                    semanticMultiplier = -3.0; // Inhibitory bond (Unrelated noise)
+                } else {
+                    semanticMultiplier = 0.1; // Weak neutral noise
+                }
+
+                // DYNAMIC ANTAGONISM: Antonyms share vector space. To differentiate them, we check the active context.
+                // If combative concepts are in Working Memory, we invert the bonds into explicit mathematical inhibition!
+                const conflictConcepts = new Set(["destroys", "opposes", "prevents", "suppresses", "crushes", "blocks", "hinders", "deters", "extinguishes", "kills", "against", "anti"]);
+                for (let n of recentNodes) {
+                    if (conflictConcepts.has(reverseDictionary.get(n))) {
+                        semanticMultiplier = -Math.abs(semanticMultiplier) * 1.5;
+                        break;
+                    }
+                }
 
                 const forwardWeight = (25.0 / distance) * semanticMultiplier;
                 const backwardWeight = (5.0 / distance) * semanticMultiplier;
@@ -374,7 +427,11 @@ async function processQueueAsync() {
                 // SEMANTIC PLASTICITY (SENSORY INTEGRATION): 
                 // Concepts read closely together gradually pull each other's foundational meaning over time.
                 if (distance <= 2) {
-                    driftVectors(prevNode, targetNodeIndex, 0.005); // 0.5% subtle drift per exposure
+                    if (semanticMultiplier > 0) {
+                        driftVectors(prevNode, targetNodeIndex, 0.005); // Excitatory: Pull together
+                    } else if (semanticMultiplier < 0) {
+                        driftVectors(prevNode, targetNodeIndex, -0.005); // Inhibitory: Push apart (Neuroplasticity!)
+                    }
                 }
             }
             distance++;
@@ -403,238 +460,385 @@ async function processQueueAsync() {
         initialQueueSize = 0;
         postMessage({ type: 'DIGESTION_PROGRESS', progress: 100 });
         sendTelemetry();
-        postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Semantic assimilation complete." });
         
         idleTimer = setTimeout(() => {
             isIdle = true;
             saveMatrix();
         }, 5000);
+        
+        if (pendingQuery) {
+            const q = pendingQuery;
+            pendingQuery = null;
+            if (q && q.type === "AGI_CONTINUE") {
+                setTimeout(() => executeAutonomousLoop(q.text, q.iteration), 500);
+            } else {
+                postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Semantic assimilation complete." });
+                setTimeout(() => executeAutonomousLoop(q), 500);
+            }
+        } else {
+            // AGI BUTTERFLY EFFECT: Automatically predict the future based on newly ingested physics.
+            let recentWords = recentNodes.map(n => reverseDictionary.get(n)).filter(w => w && !QUERY_STOP_WORDS.has(w) && !conflictConcepts.has(w));
+            if (recentWords.length > 0) {
+                postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Physics assimilated. Autonomously extrapolating downstream temporal consequences..." });
+                setTimeout(() => executeAutonomousLoop(recentWords.join(" ")), 100);
+            } else {
+                postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Semantic assimilation complete." });
+            }
+        }
     }
 }
 
-async function handleConversation(text) {
+let unresolvableConcepts = new Set();
+
+async function executeAutonomousLoop(text, iteration = 1) {
     isThinking = true;
     sendTelemetry();
+    
+    postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP ${iteration}/4]: Synthesizing vector topology for objective...` });
+    
     const words = extractValidWords(text, false); 
     let nodeIds = [];
     let mappedMsg = "";
+    let unknownConcepts = [];
     
     for (let word of words) {
         if (dictionary.has(word)) {
             nodeIds.push(dictionary.get(word));
         } else {
-            const output = await extractor(word, { pooling: 'mean', normalize: true });
-            let bestMatchId = null;
-            let highestSimilarity = 0;
+            if (!unresolvableConcepts.has(word)) {
+                const output = await extractor(word, { pooling: 'mean', normalize: true });
+                let bestMatchId = null;
+                let highestSimilarity = 0;
 
-            for (let [id, vec] of nodeVectors.entries()) {
-                const sim = cosineSimilarity(output.data, vec);
-                if (sim > highestSimilarity) {
-                    highestSimilarity = sim;
-                    bestMatchId = id;
-                }
-            }
-
-            if (highestSimilarity > SEMANTIC_THRESHOLD) {
-                nodeIds.push(bestMatchId);
-                const matchedWord = reverseDictionary.get(bestMatchId);
-                mappedMsg += `[Mapped '${word}' -> '${matchedWord}'] `;
-            }
-        }
-    }
-
-    if (nodeIds.length === 0) {
-        isThinking = false;
-        sendTelemetry();
-        return postMessage({ type: 'AION_RESPONSE', text: "[ORACLE ERROR]: Zero semantic anchors found. These concepts do not exist in the current physics layer. The matrix only knows what it has ingested!" });
-    }
-
-    if (mappedMsg !== "") {
-        postMessage({ type: 'AION_RESPONSE', text: `[SYSTEM_NOTE]: ${mappedMsg.trim()}` });
-    }
-
-    const uintIds = new Uint32Array(nodeIds);
-    
-    // Construct the frequency array to pass to WASM
-    const nodeFreqs = new Uint32Array(nextAvailableNode);
-    for (let i = 0; i < nextAvailableNode; i++) {
-        const word = reverseDictionary.get(i);
-        nodeFreqs[i] = wordFrequencies.get(word) || 1;
-    }
-
-    // 1. Run the temporal simulation to get the emergent future nodes
-    const predictedIds = brain.simulate_future(uintIds, 500, nodeFreqs);
-    
-    // 2. Combine the initial concepts and predicted concepts
-    const allActiveIds = new Uint32Array([...uintIds, ...predictedIds]);
-    
-    // 3. Extract the physical edges connecting them using your new Rust method
-    const topologyData = brain.get_causal_topology(allActiveIds, uintIds, nodeFreqs);
-    
-    if (topologyData.length > 0) {
-        let displayString = "";
-        let promptString = "";
-        // Extract the raw future concepts predicted by the SNN
-        let futureConcepts = Array.from(predictedIds).map(id => reverseDictionary.get(id)).join(", ");
-        
-        // DYNAMIC VERB SCALING: Calculate both min and max to find the true range
-        let maxScore = -Infinity; 
-        let minScore = Infinity;
-        for (let i = 0; i < topologyData.length; i += 4) {
-            if (topologyData[i+3] > maxScore) maxScore = topologyData[i+3];
-            if (topologyData[i+3] < minScore) minScore = topologyData[i+3];
-        }
-        
-        let scoreRange = maxScore - minScore;
-        if (scoreRange === 0) scoreRange = 1.0; // Prevent division by zero
-
-        // 4. Translate the flat Float32Array into high-resolution structural verbs
-        for (let i = 0; i < topologyData.length; i += 4) {
-            const srcWord = reverseDictionary.get(topologyData[i]);
-            const dstWord = reverseDictionary.get(topologyData[i+1]);
-            const weight = topologyData[i+2];
-            const score = topologyData[i+3];
-            
-            // NORMALIZED SCALING (Maps the top 12 edges across the entire verb gradient)
-            const pct = (score - minScore) / scoreRange;
-            let verb = "interacts_with";
-            if (pct >= 0.85) verb = "dictates";
-            else if (pct > 0.60) verb = "forces";
-            else if (pct > 0.40) verb = "drives";
-            else if (pct > 0.20) verb = "generates";
-            else if (pct > 0.05) verb = "influences";
-            
-            // Format massive uncapped scores clearly (e.g., 1.5M, 45.2k)
-            let displayScore = score >= 1000000 ? (score / 1000000).toFixed(1) + "M" : (score >= 1000 ? (score / 1000).toFixed(1) + "k" : score.toFixed(1));
-
-            displayString += `[${srcWord}(${verb})${dstWord}:${displayScore}] `;
-            promptString += `[${srcWord}(${verb})${dstWord}] `;
-        }
-
-        postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ${displayString.trim()}` });
-
-        // 5. THE ALGORITHMIC VOICEBOX
-        // The matrix speaks for itself natively without an LLM. 
-        const startTime = performance.now();
-        
-        let graph = new Map();
-        let inDegree = new Map();
-        let allNodes = new Set();
-        
-        for (let i = 0; i < topologyData.length; i += 4) {
-            const srcWord = reverseDictionary.get(topologyData[i]);
-            const dstWord = reverseDictionary.get(topologyData[i+1]);
-            const score = topologyData[i+3];
-            
-            const pct = (score - minScore) / scoreRange;
-            let verb = "interacts with";
-            if (pct >= 0.85) verb = "dictates";
-            else if (pct > 0.60) verb = "forces";
-            else if (pct > 0.40) verb = "drives";
-            else if (pct > 0.20) verb = "generates";
-            else if (pct > 0.05) verb = "influences";
-
-            if (!graph.has(srcWord)) graph.set(srcWord, []);
-            graph.get(srcWord).push({ dst: dstWord, verb, pct });
-            
-            if (!inDegree.has(dstWord)) inDegree.set(dstWord, 0);
-            if (!inDegree.has(srcWord)) inDegree.set(srcWord, 0);
-            inDegree.set(dstWord, inDegree.get(dstWord) + 1);
-            
-            allNodes.add(srcWord);
-            allNodes.add(dstWord);
-        }
-
-        // 1. Identify Root Causes (Nodes that act, but are not acted upon)
-        let roots = [];
-        for (let node of allNodes) {
-            if (inDegree.get(node) === 0 && graph.has(node)) roots.push(node);
-        }
-        // Fallback: If everything is a cyclical loop, start at the most influential node
-        if (roots.length === 0 && graph.size > 0) {
-            let bestNode = Array.from(graph.keys())[0];
-            let maxOut = 0;
-            for (let [k, v] of graph.entries()) {
-                if (v.length > maxOut) { maxOut = v.length; bestNode = k; }
-            }
-            roots.push(bestNode);
-        }
-
-        let visited = new Set();
-        let sentences = [];
-
-        // 2. Recursive Causal Chaining (Building dependent clauses)
-        function traverse(node, depth) {
-            if (visited.has(node)) return "";
-            visited.add(node);
-            
-            let edges = graph.get(node);
-            if (!edges || edges.length === 0) return node;
-
-            // Sort edges so the strongest physical mechanisms are spoken first
-            edges.sort((a, b) => b.pct - a.pct);
-            
-            let descriptions = [];
-            for (let edge of edges) {
-                let nextStr = traverse(edge.dst, depth + 1);
-                
-                if (nextStr === edge.dst) {
-                    descriptions.push(`${edge.verb} ${edge.dst}`);
-                } else if (nextStr !== "") {
-                    // Language Syntax: Linking multi-hop logic
-                    if (depth === 0) {
-                        descriptions.push(`${edge.verb} ${edge.dst}, which in turn ${nextStr}`);
-                    } else {
-                        descriptions.push(`${edge.verb} ${edge.dst} (ultimately leading to ${nextStr})`);
+                for (let [id, vec] of nodeVectors.entries()) {
+                    const sim = cosineSimilarity(output.data, vec);
+                    if (sim > SEMANTIC_THRESHOLD && sim > highestSimilarity) {
+                        highestSimilarity = sim;
+                        bestMatchId = id;
                     }
+                }
+
+                if (bestMatchId !== null) {
+                    nodeIds.push(bestMatchId);
+                    const matchedWord = reverseDictionary.get(bestMatchId);
+                    mappedMsg += `[Mapped '${word}' -> '${matchedWord}'] `;
                 } else {
-                    descriptions.push(`${edge.verb} ${edge.dst}`);
+                    unknownConcepts.push(word);
                 }
             }
-            
-            if (descriptions.length === 1) return descriptions[0];
-            if (descriptions.length === 2) return descriptions.join(" and ");
-            return descriptions.slice(0, -1).join(", ") + ", and " + descriptions[descriptions.length - 1];
-        }
-
-        for (let root of roots) {
-            let chain = traverse(root, 0);
-            if (chain && chain !== root) {
-                sentences.push(`${root} ${chain}`);
-            }
-        }
-
-        let paragraph = "";
-        if (sentences.length > 0) {
-            paragraph = sentences.map(s => s.charAt(0).toUpperCase() + s.slice(1) + ".").join(" ");
-            if (futureConcepts) {
-                paragraph += ` These foundational dynamics indicate emergent future states involving: ${futureConcepts}.`;
-            }
-        } else {
-            paragraph = "The matrix detects resonance, but the causal topology is too densely entangled to extract a linear narrative.";
-        }
-
-        // Simulate a rapid, deterministic typing stream for the UI
-        postMessage({ type: 'AION_STREAM_START' });
-        const wordsToType = paragraph.split(" ");
-        for (let w of wordsToType) {
-            postMessage({ type: 'AION_STREAM_CHUNK', text: w + " " });
-        }
-        
-        const timeTaken = ((performance.now() - startTime) / 1000).toFixed(3);
-        postMessage({ type: 'AION_STREAM_END', text: `[Synthesized algorithmically in ${timeTaken}s]` });
-
-    } else {
-        if (predictedIds.length > 0) {
-            const futures = Array.from(predictedIds).map(id => reverseDictionary.get(id)).join(", ");
-            postMessage({ type: 'AION_RESPONSE', text: `[AION]: Concepts resonate with [${futures}], but their causal bonds are too weak to form a definitive physical topology.` });
-        } else {
-            postMessage({ type: 'AION_RESPONSE', text: `[AION]: The causal energy decays into entropy. No definitive future state or structural topology found for those concepts.` });
         }
     }
     
-    isThinking = false;
-    sendTelemetry();
+    
+    const wikiConcepts = unknownConcepts.filter(w => !conflictConcepts.has(w) && !QUERY_STOP_WORDS.has(w));
+    
+        if (wikiConcepts.length > 0) {
+            const concept = wikiConcepts[0]; 
+            postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP]: Missing knowledge on '${concept}'. Sourcing live telemetry and global knowledge...` });
+            
+            let dataFound = false;
+            let ingestedText = "";
+
+            try {
+                const coinRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(concept)}&vs_currencies=usd&include_24hr_change=true`);
+                if (coinRes.ok) {
+                    const data = await coinRes.json();
+                    if (data[concept]) {
+                        const change = data[concept].usd_24h_change;
+                        let momentum = change > 5 ? "surges" : change > 0 ? "grows" : change < -5 ? "crashes" : "drops";
+                        ingestedText = `${concept} ${momentum}.`;
+                        dataFound = true;
+                    }
+                }
+            } catch (e) {}
+
+            if (!dataFound) {
+                try {
+                    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(concept)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.type === 'standard' && data.extract) {
+                            ingestedText = data.extract;
+                            dataFound = true;
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            if (dataFound) {
+                postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP]: Data successfully acquired for '${concept}'. Metabolizing into Spiking Neural Network...` });
+                pendingQuery = { type: "AGI_CONTINUE", text: text, iteration: iteration };
+                return processText(ingestedText);
+            } else {
+                postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP]: Failed to acquire external data for '${concept}'. Marking as unresolvable entropy.` });
+                unresolvableConcepts.add(concept);
+                return setTimeout(() => executeAutonomousLoop(text, iteration), 500);
+            }
+        }
+
+        if (nodeIds.length === 0) {
+            postMessage({ type: 'AION_RESPONSE', text: `[AGI FAILURE]: Zero valid semantic anchors could be mapped. The matrix cannot proceed.` });
+            isThinking = false;
+            sendTelemetry();
+            return;
+        }
+
+        if (mappedMsg !== "") {
+            postMessage({ type: 'AION_RESPONSE', text: `[SYSTEM_NOTE]: ${mappedMsg.trim()}` });
+        }
+        
+        const nodeFreqs = new Uint32Array(nextAvailableNode);
+        for (let i = 0; i < nextAvailableNode; i++) {
+            const word = reverseDictionary.get(i);
+            nodeFreqs[i] = wordFrequencies.get(word) || 1;
+        }
+        
+        for (let id of nodeIds) {
+            if (!conversationalMemory.includes(id)) conversationalMemory.push(id);
+        }
+        if (conversationalMemory.length > 10) conversationalMemory = conversationalMemory.slice(conversationalMemory.length - 10);
+        const contextIds = new Uint32Array(conversationalMemory);
+
+        const predictedIds = brain.simulate_future(contextIds, 500, nodeFreqs);
+        const allActiveIds = new Uint32Array([...contextIds, ...predictedIds]);
+        const topologyData = brain.get_causal_topology(allActiveIds, contextIds, nodeFreqs);
+
+        let connectedQueryNodes = 0;
+        for (let id of nodeIds) {
+            let found = false;
+            for (let i = 0; i < topologyData.length; i += 4) {
+                if (topologyData[i] === id || topologyData[i+1] === id) { found = true; break; }
+            }
+            if (found) connectedQueryNodes++;
+        }
+
+        let isSuccess = false;
+        if (nodeIds.length > 1) {
+            isSuccess = (topologyData.length > 0 && connectedQueryNodes >= 2);
+        } else {
+            isSuccess = (topologyData.length > 0);
+        }
+
+        if (isSuccess) {
+            postMessage({ type: 'AION_RESPONSE', text: `[AGI SUCCESS]: Autonomous objective resolved. Synthesizing final chronological timeline...` });
+            
+            let displayString = "";
+            let promptString = "";
+            let futureConcepts = Array.from(predictedIds)
+                .map(id => reverseDictionary.get(id))
+                .filter(w => w && !QUERY_STOP_WORDS.has(w) && !conflictConcepts.has(w) && w.length > 2)
+                .join(", ");
+            
+            let maxScore = -Infinity; 
+            let minScore = Infinity;
+            for (let i = 0; i < topologyData.length; i += 4) {
+                const srcWord = reverseDictionary.get(topologyData[i]);
+                const dstWord = reverseDictionary.get(topologyData[i+1]);
+                if (conflictConcepts.has(srcWord) || conflictConcepts.has(dstWord) || QUERY_STOP_WORDS.has(srcWord) || QUERY_STOP_WORDS.has(dstWord)) continue;
+
+                if (topologyData[i+3] > maxScore) maxScore = topologyData[i+3];
+                if (topologyData[i+3] < minScore) minScore = topologyData[i+3];
+            }
+            
+            let scoreRange = maxScore - minScore;
+            if (scoreRange === 0 || !isFinite(scoreRange)) scoreRange = 1.0;
+
+            for (let i = 0; i < topologyData.length; i += 4) {
+                const srcWord = reverseDictionary.get(topologyData[i]);
+                const dstWord = reverseDictionary.get(topologyData[i+1]);
+                
+                if (conflictConcepts.has(srcWord) || conflictConcepts.has(dstWord) || QUERY_STOP_WORDS.has(srcWord) || QUERY_STOP_WORDS.has(dstWord)) continue;
+
+                const weight = topologyData[i+2];
+                const score = topologyData[i+3];
+                const pct = (score - minScore) / scoreRange;
+                const selector = Math.floor(score) % 3;
+                let verb = "";
+                
+                if (weight < 0) {
+                    const verbs85 = ["destroys", "obliterates", "crushes"];
+                    const verbs60 = ["suppresses", "prevents", "blocks"];
+                    const verbs40 = ["inhibits", "restricts", "hinders"];
+                    const verbs20 = ["diminishes", "weakens", "reduces"];
+                    const verbs05 = ["discourages", "deters", "resists"];
+                    const verbsBase = ["opposes", "pushes_away", "conflicts_with"];
+                    verb = verbsBase[selector];
+                    if (pct >= 0.85) verb = verbs85[selector];
+                    else if (pct > 0.60) verb = verbs60[selector];
+                    else if (pct > 0.40) verb = verbs40[selector];
+                    else if (pct > 0.20) verb = verbs20[selector];
+                    else if (pct > 0.05) verb = verbs05[selector];
+                } else {
+                    const verbs85 = ["dictates", "governs", "determines"];
+                    const verbs60 = ["forces", "compels", "triggers"];
+                    const verbs40 = ["drives", "propels", "shapes"];
+                    const verbs20 = ["generates", "creates", "yields"];
+                    const verbs05 = ["influences", "affects", "modifies"];
+                    const verbsBase = ["interacts_with", "connects_to", "relates_to"];
+                    verb = verbsBase[selector];
+                    if (pct >= 0.85) verb = verbs85[selector];
+                    else if (pct > 0.60) verb = verbs60[selector];
+                    else if (pct > 0.40) verb = verbs40[selector];
+                    else if (pct > 0.20) verb = verbs20[selector];
+                    else if (pct > 0.05) verb = verbs05[selector];
+                }
+                
+                let displayScore = score >= 1000000 ? (score / 1000000).toFixed(1) + "M" : (score >= 1000 ? (score / 1000).toFixed(1) + "k" : score.toFixed(1));
+                displayString += `[${srcWord}(${verb})${dstWord}:${displayScore}] `;
+            }
+
+            postMessage({ type: 'AION_RESPONSE', text: `[PHYSICS LAYER]: ${displayString.trim()}` });
+
+            const startTime = performance.now();
+            let graph = new Map();
+            let inDegree = new Map();
+            let allNodes = new Set();
+            
+            for (let i = 0; i < topologyData.length; i += 4) {
+                const srcWord = reverseDictionary.get(topologyData[i]);
+                const dstWord = reverseDictionary.get(topologyData[i+1]);
+                if (conflictConcepts.has(srcWord) || conflictConcepts.has(dstWord) || QUERY_STOP_WORDS.has(srcWord) || QUERY_STOP_WORDS.has(dstWord)) continue;
+
+                const weight = topologyData[i+2];
+                const score = topologyData[i+3];
+                const pct = (score - minScore) / scoreRange;
+                const selector = Math.floor(score) % 3;
+                let verb = "";
+                
+                if (weight < 0) {
+                    const verbs85 = ["destroys", "obliterates", "crushes"];
+                    const verbs60 = ["suppresses", "prevents", "blocks"];
+                    const verbs40 = ["inhibits", "restricts", "hinders"];
+                    const verbs20 = ["diminishes", "weakens", "reduces"];
+                    const verbs05 = ["discourages", "deters", "resists"];
+                    const verbsBase = ["opposes", "pushes away", "conflicts with"];
+                    verb = verbsBase[selector];
+                    if (pct >= 0.85) verb = verbs85[selector];
+                    else if (pct > 0.60) verb = verbs60[selector];
+                    else if (pct > 0.40) verb = verbs40[selector];
+                    else if (pct > 0.20) verb = verbs20[selector];
+                    else if (pct > 0.05) verb = verbs05[selector];
+                } else {
+                    const verbs85 = ["dictates", "governs", "determines"];
+                    const verbs60 = ["forces", "compels", "triggers"];
+                    const verbs40 = ["drives", "propels", "shapes"];
+                    const verbs20 = ["generates", "creates", "yields"];
+                    const verbs05 = ["influences", "affects", "modifies"];
+                    const verbsBase = ["interacts with", "connects to", "relates to"];
+                    verb = verbsBase[selector];
+                    if (pct >= 0.85) verb = verbs85[selector];
+                    else if (pct > 0.60) verb = verbs60[selector];
+                    else if (pct > 0.40) verb = verbs40[selector];
+                    else if (pct > 0.20) verb = verbs20[selector];
+                    else if (pct > 0.05) verb = verbs05[selector];
+                }
+
+                if (!graph.has(srcWord)) graph.set(srcWord, []);
+                graph.get(srcWord).push({ dst: dstWord, verb, pct });
+                
+                if (!inDegree.has(dstWord)) inDegree.set(dstWord, 0);
+                if (!inDegree.has(srcWord)) inDegree.set(srcWord, 0);
+                inDegree.set(dstWord, inDegree.get(dstWord) + 1);
+                
+                allNodes.add(srcWord);
+                allNodes.add(dstWord);
+            }
+
+            let roots = [];
+            for (let node of allNodes) {
+                if (inDegree.get(node) === 0 && graph.has(node)) roots.push(node);
+            }
+            if (roots.length === 0 && graph.size > 0) {
+                let bestNode = Array.from(graph.keys())[0];
+                let maxOut = 0;
+                for (let [k, v] of graph.entries()) {
+                    if (v.length > maxOut) { maxOut = v.length; bestNode = k; }
+                }
+                roots.push(bestNode);
+            }
+
+            let visited = new Set();
+            let sentences = [];
+
+            function traverse(node, depth) {
+                if (visited.has(node)) return "";
+                visited.add(node);
+                let edges = graph.get(node);
+                if (!edges || edges.length === 0) return "";
+                edges.sort((a, b) => b.pct - a.pct);
+                
+                let descriptions = [];
+                for (let edge of edges) {
+                    if (visited.has(edge.dst)) continue;
+                    let nextStr = traverse(edge.dst, depth + 1);
+                    if (nextStr === "") {
+                        descriptions.push(`${edge.verb} ${edge.dst}`);
+                    } else {
+                        const transitionSelector = Math.floor(edge.pct * 100) % 3;
+                        const transitionsDepth0 = ["which in turn", "and subsequently", "and thereby"];
+                        const transitionsDepthN = ["which ultimately", "and finally", "which cascades and"];
+                        if (depth === 0) {
+                            descriptions.push(`${edge.verb} ${edge.dst}, ${transitionsDepth0[transitionSelector]} ${nextStr}`);
+                        } else {
+                            descriptions.push(`${edge.verb} ${edge.dst} (${transitionsDepthN[transitionSelector]} ${nextStr})`);
+                        }
+                    }
+                }
+                if (descriptions.length === 0) return "";
+                if (descriptions.length === 1) return descriptions[0];
+                if (descriptions.length === 2) return descriptions.join(" and ");
+                return descriptions.slice(0, -1).join(", ") + ", and " + descriptions[descriptions.length - 1];
+            }
+
+            for (let root of roots) {
+                let chain = traverse(root, 0);
+                if (chain && chain !== root) sentences.push(`${root} ${chain}`);
+            }
+
+            let paragraph = "";
+            if (sentences.length > 0) {
+                paragraph = sentences.map(s => s.charAt(0).toUpperCase() + s.slice(1) + ".").join(" ");
+                if (futureConcepts) paragraph += ` The chronological timeline extrapolates toward emergent future states involving: ${futureConcepts}.`;
+            } else {
+                paragraph = "The matrix detects resonance, but the causal topology is too densely entangled to extract a linear narrative.";
+            }
+
+            postMessage({ type: 'AION_STREAM_START' });
+            const wordsToType = paragraph.split(" ");
+            for (let w of wordsToType) postMessage({ type: 'AION_STREAM_CHUNK', text: w + " " });
+            
+            const timeTaken = ((performance.now() - startTime) / 1000).toFixed(3);
+            postMessage({ type: 'AION_STREAM_END', text: `[Synthesized algorithmically in ${timeTaken}s]` });
+
+            isThinking = false;
+            sendTelemetry();
+            return;
+        }
+
+        if (iteration >= 4) {
+            postMessage({ type: 'AION_RESPONSE', text: `[AGI FAILURE]: Maximum loops reached. The causal energy decays into entropy. No definitive future state found.` });
+            isThinking = false;
+            sendTelemetry();
+            return;
+        }
+
+        postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP]: Causal topology disconnected. Engaging targeted abstract reasoning to force a dream bridge...` });
+        
+        if (nodeIds.length >= 2) {
+            let missingNodes = nodeIds.filter(id => {
+                for (let i = 0; i < topologyData.length; i += 4) {
+                    if (topologyData[i] === id || topologyData[i+1] === id) return false;
+                }
+                return true;
+            });
+            let nA = nodeIds[0];
+            let nB = missingNodes.length > 0 ? missingNodes[0] : nodeIds[1];
+            if (nA === nB && nodeIds.length > 1) nB = nodeIds[1];
+            targetedDreamCycle(nA, nB);
+        } else {
+            dreamCycle();
+        }
+        setTimeout(() => executeAutonomousLoop(text, iteration + 1), 1000);
 }
 
 self.onmessage = function(e) {
@@ -647,10 +851,24 @@ self.onmessage = function(e) {
         if (isProcessingQueue) {
             return postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Cognitive matrix is currently assimilating temporal data. Please wait for digestion to complete." });
         }
+        
         if (isThinking) {
             return postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: The Neocortex is currently synthesizing a response. Please wait." });
         }
-        handleConversation(payload);
+        
+        const text = payload.trim();
+        const lowerText = text.toLowerCase();
+        const isQuestion = text.includes('?') || lowerText.startsWith('what') || lowerText.startsWith('how') || lowerText.startsWith('why') || lowerText.startsWith('who') || lowerText.startsWith('does') || lowerText.startsWith('can') || lowerText.startsWith('is');
+        
+        if (isQuestion && !lowerText.startsWith('/learn ')) {
+            unresolvableConcepts.clear();
+            postMessage({ type: 'AION_RESPONSE', text: `[AGI SYSTEM]: Objective received. Commencing autonomous research and prediction loop...` });
+            executeAutonomousLoop(text, 1);
+        } else {
+            const cleanText = lowerText.startsWith('/learn ') ? text.substring(7) : text;
+            postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Metabolizing declarative physics into the Neocortex..." });
+            processText(cleanText);
+        }
     } 
     else if (type === 'INGEST_TEXT') {
         if (!isReady) {
@@ -680,6 +898,9 @@ self.onmessage = function(e) {
         totalWordsIngested = 0;
         nextAvailableNode = 0;
         initialQueueSize = 0;
+        conversationalMemory = [];
+        unresolvableConcepts.clear();
+        quantitativeMemory.clear();
 
         const tx = db.transaction('memory', 'readwrite');
         tx.objectStore('memory').clear();
@@ -693,17 +914,43 @@ self.onmessage = function(e) {
         if (!isReady || !brain) return;
         
         let totalEdges = 0;
+        let graphNodes = [];
+        let graphLinks = [];
+        
         if (nextAvailableNode > 0) {
             const lens = brain.export_edge_lens(nextAvailableNode);
-            for (let i = 0; i < lens.length; i++) totalEdges += lens[i];
+            const ptrs = brain.export_edge_ptrs(nextAvailableNode);
+            const maxEdgeIdx = brain.get_max_edge_index(nextAvailableNode);
+            const dsts = brain.export_edge_dst(maxEdgeIdx);
+            const weights = brain.export_edge_weight(maxEdgeIdx);
+            
+            for (let i = 0; i < nextAvailableNode; i++) {
+                const sourceWord = reverseDictionary.get(i);
+                const freq = wordFrequencies.get(sourceWord) || 1;
+                
+                // Export Nodes
+                graphNodes.push({ id: sourceWord, val: freq });
+                totalEdges += lens[i];
+                
+                // Export Edges (Filter out noise weights < 5.0 to keep the 3D graph performant)
+                let ptr = ptrs[i];
+                let len = lens[i];
+                for (let j = 0; j < len; j++) {
+                    let idx = ptr + j;
+                    let dst = dsts[idx];
+                    let w = weights[idx];
+                // Lowered export threshold from 5.0 to 2.0 to ensure finer inhibitory threads are visible
+                if (Math.abs(w) >= 2.0 && i !== dst) {
+                        const targetWord = reverseDictionary.get(dst);
+                        graphLinks.push({ source: sourceWord, target: targetWord, weight: w });
+                    }
+                }
+            }
         }
         
         const exportState = {
-            nodes: nextAvailableNode,
-            totalWordsIngested,
-            edges_count: totalEdges,
-            dictionary: Array.from(dictionary.entries()),
-            wordFrequencies: Array.from(wordFrequencies.entries())
+            nodes: graphNodes,
+            links: graphLinks
         };
         
         postMessage({ type: 'EXPORT_DATA', payload: exportState });

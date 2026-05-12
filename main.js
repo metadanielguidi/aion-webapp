@@ -1,5 +1,5 @@
 // Boot the Web Worker as a module
-const worker = new Worker('worker.js', { type: 'module' });
+const worker = new Worker('worker.js?v=' + Date.now(), { type: 'module' });
 
 // DOM Elements
 const chatBox = document.getElementById('chat-box');
@@ -195,6 +195,16 @@ worker.onmessage = function(e) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         appendMessage('AION_SYS', 'MATRIX OBLITERATED. Tabula rasa achieved.');
     }
+    else if (type === 'EXPORT_DATA') {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "aion_universe_topology.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        appendMessage('AION_SYS', `Universe topology exported. ${payload.nodes.length} nodes and ${payload.links.length} core connections compiled for 3D visualization.`);
+    }
 };
 
 // 2. User Input Handlers
@@ -204,6 +214,12 @@ chatInput.addEventListener('keydown', (e) => {
         appendMessage('USER', text);
         chatInput.value = '';
         
+        // Command to export the universe
+        if (text.trim().toLowerCase() === '/export') {
+            worker.postMessage({ type: 'REQUEST_EXPORT' });
+            return;
+        }
+
         // VISUAL CORTEX SYNC: Highlight queried nodes in neon blue
         const queryWords = text.toLowerCase().match(/\b\w+\b/g) || [];
         

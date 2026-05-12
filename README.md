@@ -13,6 +13,8 @@ AION runs entirely within the browser's sandbox using parallel web workers and l
 * **The Algorithmic Motor Cortex (Broca's Area):** A completely deterministic, zero-hallucination JavaScript graph synthesizer. It utilizes a Depth-First Search (DFS) algorithm to traverse the directed causal topology from root to effect, dynamically generating fluent, compound-complex sentences.
 * **The Visual Cortex:** A highly optimized HTML5 Canvas 2D physics engine that renders the SNN's semantic topology and temporal connections in real-time.
 * **Memory:** Persistent IndexedDB storage. AION caches both its multi-gigabyte Neocortex and its evolving network topology locally.
+* **The Autonomous Research Loop:** A recursive AGI protocol that automatically detects missing knowledge, scrapes global APIs (Wikipedia, Live Markets), ingests the data, and validates causal topologies over multiple iterative loops without human prompting.
+* **The Quantitative Lobe:** A real-time data integration layer that caches live numerical telemetry (e.g., asset prices). Following semantic timeline generation, AION translates the resulting linguistic momentum back into concrete numerical forecasts.
 
 ## 🧬 Core Philosophy
 
@@ -26,6 +28,7 @@ To prevent structural noise from overwhelming true semantic domains, AION employ
 * **Cognitive Working Memory Window:** AION ingests text using a flattened sliding window, mapping dense semantic webs rather than simple linear chains. It also maintains a conversational context window, allowing you to ask cascading follow-up questions without the matrix experiencing "amnesia."
 * **The Dream Cycle (Memory Consolidation):** While idle, the matrix actively co-activates concepts from its "Day Residue" to simulate hypothetical cascades. If a coherent topological bridge is formed, it establishes novel insights entirely on its own.
 * **Semantic Plasticity (Vector Drifting):** Standard AI models have frozen understandings of words. AION dynamically mutates the foundational 384-dimensional math of its sensory vocabulary based on its own text exposure and internal dreams, developing a completely subjective understanding of reality over time.
+* **Targeted Abstract Reasoning:** When evaluating an objective, if the matrix detects that core concepts are topologically isolated, it engages a focused, high-energy dream cycle to forcefully forge a novel synaptic bridge across the semantic void.
 * **Myelination & True Pruning (Long-Term Memory Consolidation):** The Spiking Neural Network simulates years of biological learning. Massive foundational bonds (core curriculum) become "myelinated" and almost immune to decay, while weak, fleeting noise is aggressively pruned and forgotten, allowing the matrix to grow a stable, compounding intelligence.
 * **Conscious Focal Gravity:** When you query the matrix, the specific queried concepts bypass standard decay shields and receive a massive focal voltage injection (`499.0x`). This allows hyper-specific niche concepts (like "proton") to pierce through the background noise of massive documents.
 * **The Goldilocks Curve:** A scale-invariant topology filter that mathematically rewards true domain concepts (e.g., "physics", "energy") with core multipliers, while applying massive exponential hub penalties to both primary and secondary stop-words based on the evolving maximum density of the graph.
@@ -66,5 +69,5 @@ Because AION has jettisoned the LLM bloat, it is incredibly lightweight and oper
 ## 📡 Operating Protocols
 
 * **Bulk Ingestion:** Use the `Upload Temporal Data` button to feed AION `.txt` files. The SNN will build its semantic topology (visible in the background) based on the causal sequences in the text.
-* **Querying:** Type concepts directly into the terminal (e.g., `what is bitcoin?`). The SNN will extract the relational edges, and the Algorithmic Voicebox will synthesize the physical outcome. If the concepts do not exist in its memory, it will explicitly state that no semantic anchors were found.
+* **Autonomous Querying:** Type natural questions directly into the terminal (e.g., `What will bitcoin be in June?`). AION will trigger an autonomous loop: evaluating its own knowledge gaps, fetching missing live data (Wikipedia/Market APIs), running the SNN physics engine, and bridging concepts via abstract dreams until it reaches a definitive chronological timeline and quantitative forecast.
 * **Tabula Rasa:** Click `HARD RESET MATRIX` to obliterate the current IndexedDB memory state, clearing the SNN's topology and dynamic habituation maps. (This does *not* delete the cached ONNX model).

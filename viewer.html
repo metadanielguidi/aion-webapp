@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AION 3D Topology Viewer</title>
+    <!-- Load 3D Force Graph from CDN -->
+    <script src="https://unpkg.com/3d-force-graph"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #000; color: #0f0; font-family: monospace; overflow: hidden; }
+        #ui-panel { 
+            position: absolute; 
+            top: 15px; 
+            left: 15px; 
+            z-index: 10; 
+            background: rgba(0, 20, 0, 0.85); 
+            padding: 15px; 
+            border: 1px solid #0f0; 
+            border-radius: 5px;
+            box-shadow: 0 0 10px #0f0;
+        }
+        h2 { margin: 0 0 10px 0; font-size: 1.2rem; }
+        #3d-graph { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="ui-panel">
+        <h2>AION Universe Viewer</h2>
+        <label for="json-upload">Upload exported topology:</label><br><br>
+        <input type="file" id="json-upload" accept=".json" />
+    </div>
+    <div id="3d-graph"></div>
+
+    <script>
+        // Initialize the 3D Graph
+        const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
+            .backgroundColor('#000008')
+            .nodeLabel('id') // Show the word on hover
+            .nodeVal('val')  // Node size based on word frequency
+            .nodeAutoColorBy('group')
+            .linkColor(link => link.weight < 0 ? 'rgba(255, 0, 0, 0.4)' : 'rgba(0, 255, 0, 0.4)')
+            .linkWidth(link => Math.min(Math.abs(link.weight) * 0.05, 5)) // Cap max thickness
+            .linkDirectionalParticles(2)
+            .linkDirectionalParticleWidth(link => link.weight < 0 ? 2.5 : 1.5) // Make inhibitory particles slightly larger
+            .linkDirectionalParticleColor(link => link.weight < 0 ? '#ff0000' : '#00ff00')
+            .linkDirectionalParticleSpeed(link => Math.abs(link.weight) * 0.0005); // Faster particles for stronger causal bonds
+
+        // Handle the file upload
+        document.getElementById('json-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const graphData = JSON.parse(event.target.result);
+                
+                // Group nodes roughly by frequency so high-frequency hubs share a color
+                graphData.nodes.forEach(n => { n.group = Math.floor(Math.log10(n.val + 1)); });
+
+                Graph.graphData(graphData);
+            };
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+</html>
