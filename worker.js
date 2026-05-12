@@ -15,6 +15,7 @@ let recentNodes = [];
 let initialQueueSize = 0;
 let pendingQuery = null;
 let conversationalMemory = [];
+let quantitativeMemory = new Map();
 
 const nodeVectors = new Map(); 
 let dictionary = new Map();
@@ -545,6 +546,8 @@ async function executeAutonomousLoop(text, iteration = 1) {
                     const data = await coinRes.json();
                     if (data[concept]) {
                         const change = data[concept].usd_24h_change;
+                        const price = data[concept].usd;
+                        quantitativeMemory.set(concept, { price, change });
                         let momentum = change > 5 ? "surges" : change > 0 ? "grows" : change < -5 ? "crashes" : "drops";
                         ingestedText = `${concept} ${momentum}.`;
                         dataFound = true;
@@ -799,6 +802,26 @@ async function executeAutonomousLoop(text, iteration = 1) {
             if (sentences.length > 0) {
                 paragraph = sentences.map(s => s.charAt(0).toUpperCase() + s.slice(1) + ".").join(" ");
                 if (futureConcepts) paragraph += ` The chronological timeline extrapolates toward emergent future states involving: ${futureConcepts}.`;
+                
+                let quantForecast = [];
+                for (let queryNode of nodeIds) {
+                    const queryWord = reverseDictionary.get(queryNode);
+                    if (quantitativeMemory.has(queryWord)) {
+                        const quantData = quantitativeMemory.get(queryWord);
+                        let semanticMultiplier = 1.0;
+                        const analysisTxt = paragraph.toLowerCase();
+                        if (analysisTxt.includes("surge") || analysisTxt.includes("grow") || analysisTxt.includes("dictate") || analysisTxt.includes("drive")) {
+                            semanticMultiplier = 1.12; 
+                        } else if (analysisTxt.includes("crash") || analysisTxt.includes("drop") || analysisTxt.includes("destroy") || analysisTxt.includes("suppress")) {
+                            semanticMultiplier = 0.88; 
+                        }
+                        if (semanticMultiplier !== 1.0) {
+                            const projectedPrice = (quantData.price * semanticMultiplier).toFixed(2);
+                            quantForecast.push(`Quantitative translation projects ${queryWord.toUpperCase()} valuation shifting toward $${projectedPrice}.`);
+                        }
+                    }
+                }
+                if (quantForecast.length > 0) paragraph += " " + quantForecast.join(" ");
             } else {
                 paragraph = "The matrix detects resonance, but the causal topology is too densely entangled to extract a linear narrative.";
             }
