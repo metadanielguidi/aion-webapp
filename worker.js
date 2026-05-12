@@ -292,7 +292,7 @@ function targetedDreamCycle(nodeA, nodeB) {
     }
 }
 
-const QUERY_STOP_WORDS = new Set(['and', 'the', 'with', 'from', 'what', 'how', 'why', 'who', 'this', 'that', 'then', 'than', 'are', 'was', 'has', 'had', 'have', 'been', 'does', 'did', 'for', 'about', 'happens', 'into', 'onto', 'upon', 'will', 'would', 'could', 'should', 'shall', 'can', 'may', 'might', 'must', 'which', 'where', 'when', 'there', 'their', 'they', 'them', 'these', 'those', 'some', 'many', 'much', 'very']);
+const QUERY_STOP_WORDS = new Set(['and', 'the', 'with', 'from', 'what', 'how', 'why', 'who', 'this', 'that', 'then', 'than', 'are', 'was', 'has', 'had', 'have', 'been', 'does', 'do', 'is', 'were', 'did', 'for', 'about', 'happens', 'into', 'onto', 'upon', 'will', 'would', 'could', 'should', 'shall', 'can', 'may', 'might', 'must', 'which', 'where', 'when', 'there', 'their', 'they', 'them', 'these', 'those', 'some', 'many', 'much', 'very', 'predict', 'forecast', 'evaluate', 'analyze']);
 const conflictConcepts = new Set(["destroys", "opposes", "prevents", "suppresses", "crushes", "blocks", "hinders", "deters", "extinguishes", "kills", "against", "anti"]);
 
 function extractValidWords(rawStr, isLearning = false) {
@@ -402,12 +402,12 @@ async function processQueueAsync() {
                 // STEEP SEMANTIC CLIFF: Dense embedding models mathematically cluster syntactic roles.
                 // RESTORED BALANCE: Widen the excitatory net so AION can properly ingest Wikipedia.
                 let semanticMultiplier;
-                if (sim >= 0.40) {
-                    semanticMultiplier = sim * 3.0; // Excitatory bond
-                } else if (sim < 0.15) {
-                    semanticMultiplier = -3.0; // Inhibitory bond (Unrelated noise)
+                if (sim >= 0.25) {
+                    semanticMultiplier = sim * 4.0; // Excitatory bond (widened for qualitative facts)
+                } else if (sim < 0.10) {
+                    semanticMultiplier = -2.0; // Inhibitory bond (Unrelated noise)
                 } else {
-                    semanticMultiplier = 0.1; // Weak neutral noise
+                    semanticMultiplier = 0.5; // Weak neutral noise (raised to retain sentence structure)
                 }
 
                 // DYNAMIC ANTAGONISM: Antonyms share vector space. To differentiate them, we check the active context.
@@ -540,33 +540,36 @@ async function executeAutonomousLoop(text, iteration = 1) {
             let dataFound = false;
             let ingestedText = "";
 
-            try {
-                const coinRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(concept)}&vs_currencies=usd&include_24hr_change=true`);
-                if (coinRes.ok) {
-                    const data = await coinRes.json();
-                    if (data[concept]) {
-                        const change = data[concept].usd_24h_change;
-                        const price = data[concept].usd;
-                        quantitativeMemory.set(concept, { price, change });
-                        let momentum = change > 5 ? "surges" : change > 0 ? "grows" : change < -5 ? "crashes" : "drops";
-                        ingestedText = `${concept} ${momentum}.`;
-                        dataFound = true;
-                    }
-                }
-            } catch (e) {}
+            // FINANCIAL INTENT FILTER: Only ping live market telemetry if the query suggests financial or predictive context.
+            const isFinancialQuery = /(price|valuation|market|stock|crypto|coin|token|dollar|usd|\$|predict|forecast|finance|asset)/i.test(text);
 
-            if (!dataFound) {
+            if (isFinancialQuery) {
                 try {
-                    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(concept)}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.type === 'standard' && data.extract) {
-                            ingestedText = data.extract;
+                    const coinRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(concept)}&vs_currencies=usd&include_24hr_change=true`);
+                    if (coinRes.ok) {
+                        const data = await coinRes.json();
+                        if (data[concept]) {
+                            const change = data[concept].usd_24h_change;
+                            const price = data[concept].usd;
+                            quantitativeMemory.set(concept, { price, change });
+                            let momentum = change > 5 ? "surges" : change > 0 ? "grows" : change < -5 ? "crashes" : "drops";
+                            ingestedText += `${concept} ${momentum}. `;
                             dataFound = true;
                         }
                     }
                 } catch (e) {}
             }
+
+            try {
+                const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(concept)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.type === 'standard' && data.extract) {
+                        ingestedText += data.extract;
+                        dataFound = true;
+                    }
+                }
+            } catch (e) {}
 
             if (dataFound) {
                 postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP]: Data successfully acquired for '${concept}'. Metabolizing into Spiking Neural Network...` });
@@ -604,7 +607,43 @@ async function executeAutonomousLoop(text, iteration = 1) {
 
         const predictedIds = brain.simulate_future(contextIds, 500, nodeFreqs);
         const allActiveIds = new Uint32Array([...contextIds, ...predictedIds]);
-        const topologyData = brain.get_causal_topology(allActiveIds, contextIds, nodeFreqs);
+        
+        // FOCAL GRAVITY SHIELD: Apply the 499.0x conscious multiplier ONLY to the current query nodes.
+        // Past nodes still provide background simulation context, but won't violently hijack the sentence extraction.
+        const currentQueryIds = new Uint32Array(nodeIds);
+        let rawTopologyData = brain.get_causal_topology(allActiveIds, currentQueryIds, nodeFreqs);
+
+        // CONTEXTUAL PRUNING: Isolate only the subgraph connected to the user's explicit query to prevent
+        // old myelinated edges from the conversational memory from hijacking the narrative.
+        let connectedComponent = new Set();
+        let adjList = new Map();
+        for (let i = 0; i < rawTopologyData.length; i += 4) {
+            const u = rawTopologyData[i];
+            const v = rawTopologyData[i+1];
+            if (!adjList.has(u)) adjList.set(u, []);
+            if (!adjList.has(v)) adjList.set(v, []);
+            adjList.get(u).push(v);
+            adjList.get(v).push(u);
+        }
+        
+        let qQueue = Array.from(currentQueryIds);
+        while (qQueue.length > 0) {
+            let curr = qQueue.shift();
+            if (!connectedComponent.has(curr)) {
+                connectedComponent.add(curr);
+                if (adjList.has(curr)) {
+                    qQueue.push(...adjList.get(curr));
+                }
+            }
+        }
+        
+        let filteredTopology = [];
+        for (let i = 0; i < rawTopologyData.length; i += 4) {
+            if (connectedComponent.has(rawTopologyData[i]) && connectedComponent.has(rawTopologyData[i+1])) {
+                filteredTopology.push(rawTopologyData[i], rawTopologyData[i+1], rawTopologyData[i+2], rawTopologyData[i+3]);
+            }
+        }
+        const topologyData = new Float32Array(filteredTopology);
 
         let connectedQueryNodes = 0;
         for (let id of nodeIds) {
@@ -628,6 +667,19 @@ async function executeAutonomousLoop(text, iteration = 1) {
             let displayString = "";
             let promptString = "";
             let futureConcepts = Array.from(predictedIds)
+                .filter(id => {
+                    let maxSim = 0;
+                    const predVec = nodeVectors.get(id);
+                    if (!predVec) return false;
+                    for (let qId of nodeIds) {
+                        const qVec = nodeVectors.get(qId);
+                        if (qVec) {
+                            const sim = cosineSimilarity(predVec, qVec);
+                            if (sim > maxSim) maxSim = sim;
+                        }
+                    }
+                    return maxSim >= 0.15 || connectedComponent.has(id);
+                })
                 .map(id => reverseDictionary.get(id))
                 .filter(w => w && !QUERY_STOP_WORDS.has(w) && !conflictConcepts.has(w) && w.length > 2)
                 .join(", ");
@@ -751,6 +803,20 @@ async function executeAutonomousLoop(text, iteration = 1) {
             for (let node of allNodes) {
                 if (inDegree.get(node) === 0 && graph.has(node)) roots.push(node);
             }
+            
+            // CONSCIOUS FOCUS: Force query nodes as primary roots to ensure the algorithmic voicebox
+            // centers its narrative on the user's objective, especially if the concepts are trapped in a causal cycle.
+            for (let id of nodeIds) {
+                const qWord = reverseDictionary.get(id);
+                if (graph.has(qWord)) {
+                    if (!roots.includes(qWord)) {
+                        roots.unshift(qWord);
+                    } else {
+                        roots = [qWord, ...roots.filter(r => r !== qWord)];
+                    }
+                }
+            }
+
             if (roots.length === 0 && graph.size > 0) {
                 let bestNode = Array.from(graph.keys())[0];
                 let maxOut = 0;
@@ -770,23 +836,34 @@ async function executeAutonomousLoop(text, iteration = 1) {
                 if (!edges || edges.length === 0) return "";
                 edges.sort((a, b) => b.pct - a.pct);
                 
-                let descriptions = [];
+                let verbGroups = new Map();
                 for (let edge of edges) {
                     if (visited.has(edge.dst)) continue;
                     let nextStr = traverse(edge.dst, depth + 1);
+                    let key = edge.verb;
+                    if (!verbGroups.has(key)) verbGroups.set(key, []);
+                    
                     if (nextStr === "") {
-                        descriptions.push(`${edge.verb} ${edge.dst}`);
+                        verbGroups.get(key).push(edge.dst);
                     } else {
                         const transitionSelector = Math.floor(edge.pct * 100) % 3;
-                        const transitionsDepth0 = ["which in turn", "and subsequently", "and thereby"];
-                        const transitionsDepthN = ["which ultimately", "and finally", "which cascades and"];
+                        const transitionsDepth0 = ["which in turn", "and subsequently", "thereby cascading into"];
+                        const transitionsDepthN = ["which ultimately", "finally resulting in", "and subsequently"];
                         if (depth === 0) {
-                            descriptions.push(`${edge.verb} ${edge.dst}, ${transitionsDepth0[transitionSelector]} ${nextStr}`);
+                            verbGroups.get(key).push(`${edge.dst}, ${transitionsDepth0[transitionSelector]} ${nextStr}`);
                         } else {
-                            descriptions.push(`${edge.verb} ${edge.dst} (${transitionsDepthN[transitionSelector]} ${nextStr})`);
+                            verbGroups.get(key).push(`${edge.dst} (${transitionsDepthN[transitionSelector]} ${nextStr})`);
                         }
                     }
                 }
+                
+                let descriptions = [];
+                for (let [verb, dsts] of verbGroups.entries()) {
+                    if (dsts.length === 1) descriptions.push(`${verb} ${dsts[0]}`);
+                    else if (dsts.length === 2) descriptions.push(`${verb} ${dsts[0]} and ${dsts[1]}`);
+                    else descriptions.push(`${verb} ` + dsts.slice(0, -1).join(", ") + ", and " + dsts[dsts.length - 1]);
+                }
+                
                 if (descriptions.length === 0) return "";
                 if (descriptions.length === 1) return descriptions[0];
                 if (descriptions.length === 2) return descriptions.join(" and ");
@@ -816,8 +893,12 @@ async function executeAutonomousLoop(text, iteration = 1) {
                             semanticMultiplier = 0.88; 
                         }
                         if (semanticMultiplier !== 1.0) {
-                            const projectedPrice = (quantData.price * semanticMultiplier).toFixed(2);
-                            quantForecast.push(`Quantitative translation projects ${queryWord.toUpperCase()} valuation shifting toward $${projectedPrice}.`);
+                            const projectedPrice = (quantData.price * semanticMultiplier);
+                            const formattedProjected = projectedPrice >= 0.01 ? projectedPrice.toFixed(2) : projectedPrice.toPrecision(4);
+                            quantForecast.push(`Quantitative translation projects ${queryWord.toUpperCase()} valuation shifting toward $${formattedProjected}.`);
+                        } else {
+                            const formattedPrice = quantData.price >= 0.01 ? quantData.price.toFixed(2) : quantData.price.toPrecision(4);
+                            quantForecast.push(`Quantitative translation anchors ${queryWord.toUpperCase()} valuation at $${formattedPrice}.`);
                         }
                     }
                 }
@@ -881,7 +962,7 @@ self.onmessage = function(e) {
         
         const text = payload.trim();
         const lowerText = text.toLowerCase();
-        const isQuestion = text.includes('?') || lowerText.startsWith('what') || lowerText.startsWith('how') || lowerText.startsWith('why') || lowerText.startsWith('who') || lowerText.startsWith('does') || lowerText.startsWith('can') || lowerText.startsWith('is');
+        const isQuestion = text.includes('?') || /^(what|how|why|who|where|when|which|does|do|did|can|could|would|should|is|are|was|were|will|predict|forecast|evaluate|analyze)\b/.test(lowerText);
         
         if (isQuestion && !lowerText.startsWith('/learn ')) {
             unresolvableConcepts.clear();
@@ -977,6 +1058,38 @@ self.onmessage = function(e) {
         };
         
         postMessage({ type: 'EXPORT_DATA', payload: exportState });
+    }
+    else if (type === 'REQUEST_VISUAL_EDGES') {
+        if (!isReady || !brain) return;
+        const activeCount = nextAvailableNode;
+        if (activeCount === 0) return;
+        
+        const ptrs = brain.export_edge_ptrs(activeCount);
+        const lens = brain.export_edge_lens(activeCount);
+        const maxEdgeIdx = brain.get_max_edge_index(activeCount);
+        const dsts = brain.export_edge_dst(maxEdgeIdx);
+        const weights = brain.export_edge_weight(maxEdgeIdx);
+        
+        let visualEdges = [];
+        let targetIds = new Set();
+        for (let w of payload) {
+            if (dictionary.has(w)) targetIds.add(dictionary.get(w));
+        }
+
+        for (let id of targetIds) {
+            let ptr = ptrs[id];
+            let len = lens[id];
+            for (let j = 0; j < len; j++) {
+                let d = dsts[ptr + j];
+                if (targetIds.has(d)) {
+                    let w = weights[ptr + j];
+                    if (Math.abs(w) > 0.5) {
+                        visualEdges.push({ source: reverseDictionary.get(id), target: reverseDictionary.get(d), weight: w });
+                    }
+                }
+            }
+        }
+        postMessage({ type: 'VISUAL_CORTEX_UPDATE', payload: visualEdges });
     }
 };
 

@@ -12,6 +12,7 @@ let currentStreamNode = null; // Tracks the active streaming message
 
 // --- THE VISUAL CORTEX (Topology Graph) ---
 let nodes = [];
+let actualEdges = []; // Tracks actual SNN physics edges
 const nodeRadius = 3;
 const connectionDistance = 150;
 
@@ -60,34 +61,60 @@ function animateTopology() {
         n1.x += n1.vx;
         n1.y += n1.vy;
 
+        // Friction to prevent infinite acceleration
+        n1.vx *= 0.99;
+        n1.vy *= 0.99;
+
         // Bounce off walls
         if (n1.x < 0 || n1.x > canvas.width) n1.vx *= -1;
         if (n1.y < 0 || n1.y > canvas.height) n1.vy *= -1;
+    }
 
-        // Draw connections
-        for (let j = i + 1; j < nodes.length; j++) {
-            let n2 = nodes[j];
+    // Draw Actual SNN Edges
+    for (let edge of actualEdges) {
+        let n1 = nodes.find(n => n.word === edge.source);
+        let n2 = nodes.find(n => n.word === edge.target);
+        if (n1 && n2) {
             let dx = n1.x - n2.x;
             let dy = n1.y - n2.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance < connectionDistance) {
-                // Draw queried connections in bright blue
-                if (n1.isQueried || n2.isQueried) {
-                    ctx.strokeStyle = 'rgba(0, 204, 255, 0.4)';
-                    ctx.lineWidth = 1.5;
-                } else {
-                    ctx.strokeStyle = 'rgba(0, 255, 0, 0.15)';
-                    ctx.lineWidth = 1;
-                }
-                ctx.beginPath();
-                ctx.moveTo(n1.x, n1.y);
-                ctx.lineTo(n2.x, n2.y);
-                ctx.stroke();
+            // Semantic Gravity (Pull Excitatory, Push Inhibitory)
+            if (edge.weight > 0 && distance > 50) {
+                n1.vx += dx * 0.00005 * Math.min(10, edge.weight);
+                n1.vy += dy * 0.00005 * Math.min(10, edge.weight);
+                n2.vx -= dx * 0.00005 * Math.min(10, edge.weight);
+                n2.vy -= dy * 0.00005 * Math.min(10, edge.weight);
+            } else if (edge.weight < 0 && distance < 300) {
+                n1.vx -= dx * 0.0001 * Math.min(10, Math.abs(edge.weight));
+                n1.vy -= dy * 0.0001 * Math.min(10, Math.abs(edge.weight));
+                n2.vx += dx * 0.0001 * Math.min(10, Math.abs(edge.weight));
+                n2.vy += dy * 0.0001 * Math.min(10, Math.abs(edge.weight));
             }
-        }
 
-        // Draw the Node
+            // Draw Excitatory (Green) and Inhibitory (Red)
+            if (edge.weight > 0) {
+                ctx.strokeStyle = `rgba(0, 255, 0, ${Math.min(0.6, edge.weight / 20)})`;
+            } else {
+                ctx.strokeStyle = `rgba(255, 0, 0, ${Math.min(0.6, Math.abs(edge.weight) / 20)})`;
+            }
+            ctx.lineWidth = Math.min(3, Math.max(0.5, Math.abs(edge.weight) / 10));
+
+            // Override for queried connections
+            if (n1.isQueried || n2.isQueried) {
+                ctx.strokeStyle = 'rgba(0, 204, 255, 0.4)';
+                ctx.lineWidth = 1.5;
+            }
+            ctx.beginPath();
+            ctx.moveTo(n1.x, n1.y);
+            ctx.lineTo(n2.x, n2.y);
+            ctx.stroke();
+        }
+    }
+
+    // Draw Nodes
+    for (let i = 0; i < nodes.length; i++) {
+        let n1 = nodes[i];
         ctx.fillStyle = n1.isQueried ? '#00ccff' : '#00ff00';
         ctx.beginPath();
         ctx.arc(n1.x, n1.y, n1.isQueried ? nodeRadius * 2 : nodeRadius, 0, Math.PI * 2);
@@ -192,6 +219,7 @@ worker.onmessage = function(e) {
     } 
     else if (type === 'MATRIX_WIPED') {
         nodes = []; // Clear the visual cortex
+        actualEdges = [];
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         appendMessage('AION_SYS', 'MATRIX OBLITERATED. Tabula rasa achieved.');
     }
@@ -205,7 +233,17 @@ worker.onmessage = function(e) {
         downloadAnchorNode.remove();
         appendMessage('AION_SYS', `Universe topology exported. ${payload.nodes.length} nodes and ${payload.links.length} core connections compiled for 3D visualization.`);
     }
+    else if (type === 'VISUAL_CORTEX_UPDATE') {
+        actualEdges = payload;
+    }
 };
+
+// Periodically poll the matrix for the true physical edges of the visible nodes
+setInterval(() => {
+    if (nodes.length > 0) {
+        worker.postMessage({ type: 'REQUEST_VISUAL_EDGES', payload: nodes.map(n => n.word) });
+    }
+}, 1000);
 
 // 2. User Input Handlers
 chatInput.addEventListener('keydown', (e) => {
