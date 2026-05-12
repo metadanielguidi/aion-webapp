@@ -10,6 +10,7 @@ let isReady = false;
 let isProcessingQueue = false;
 let isThinking = false;
 let idleTimer;
+let loopTimer;
 let wordQueue = [];
 let recentNodes = [];
 let initialQueueSize = 0;
@@ -31,6 +32,7 @@ const GRACE_PERIOD = 20;
 let nextAvailableNode = 0; 
 const dbName = "AionOracleDB";
 let db;
+let currentEpoch = 0;
 
 function sendTelemetry(statusOverride = null) {
     let status = statusOverride;
@@ -337,6 +339,7 @@ function processText(text) {
 }
 
 async function processQueueAsync() {
+    const epoch = currentEpoch;
     isProcessingQueue = true;
     isIdle = false;
     clearTimeout(idleTimer);
@@ -345,6 +348,8 @@ async function processQueueAsync() {
     let processedThisCycle = 0;
 
     while (wordQueue.length > 0 && processedThisCycle < digestionLimit) {
+        if (epoch !== currentEpoch) return;
+        
         const word = wordQueue.shift();
         processedThisCycle++;
         
@@ -354,6 +359,8 @@ async function processQueueAsync() {
             targetNodeIndex = dictionary.get(word);
         } else {
             const output = await extractor(word, { pooling: 'mean', normalize: true });
+            if (epoch !== currentEpoch) return;
+            
             const incomingVector = output.data;
             
             let bestMatchId = null;
@@ -455,7 +462,7 @@ async function processQueueAsync() {
     }
     
     if (wordQueue.length > 0) {
-        setTimeout(processQueueAsync, 1);
+        loopTimer = setTimeout(processQueueAsync, 1);
     } else {
         isProcessingQueue = false;
         initialQueueSize = 0;
@@ -471,17 +478,17 @@ async function processQueueAsync() {
             const q = pendingQuery;
             pendingQuery = null;
             if (q && q.type === "AGI_CONTINUE") {
-                setTimeout(() => executeAutonomousLoop(q.text, q.iteration), 500);
+                loopTimer = setTimeout(() => executeAutonomousLoop(q.text, q.iteration), 500);
             } else {
                 postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Semantic assimilation complete." });
-                setTimeout(() => executeAutonomousLoop(q), 500);
+                loopTimer = setTimeout(() => executeAutonomousLoop(q), 500);
             }
         } else {
             // AGI BUTTERFLY EFFECT: Automatically predict the future based on newly ingested physics.
             let recentWords = recentNodes.map(n => reverseDictionary.get(n)).filter(w => w && !QUERY_STOP_WORDS.has(w) && !conflictConcepts.has(w));
             if (recentWords.length > 0) {
                 postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Physics assimilated. Autonomously extrapolating downstream temporal consequences..." });
-                setTimeout(() => executeAutonomousLoop(recentWords.join(" ")), 100);
+                loopTimer = setTimeout(() => executeAutonomousLoop(recentWords.join(" ")), 100);
             } else {
                 postMessage({ type: 'AION_RESPONSE', text: "[SYSTEM]: Semantic assimilation complete." });
             }
@@ -490,8 +497,10 @@ async function processQueueAsync() {
 }
 
 let unresolvableConcepts = new Set();
+let researchedConcepts = new Set();
 
 async function executeAutonomousLoop(text, iteration = 1) {
+    const epoch = currentEpoch;
     isThinking = true;
     sendTelemetry();
     
@@ -505,9 +514,14 @@ async function executeAutonomousLoop(text, iteration = 1) {
     for (let word of words) {
         if (dictionary.has(word)) {
             nodeIds.push(dictionary.get(word));
+            if (!researchedConcepts.has(word) && !unresolvableConcepts.has(word)) {
+                unknownConcepts.push(word);
+            }
         } else {
-            if (!unresolvableConcepts.has(word)) {
+            if (!unresolvableConcepts.has(word) && !researchedConcepts.has(word)) {
                 const output = await extractor(word, { pooling: 'mean', normalize: true });
+                if (epoch !== currentEpoch) return;
+                
                 let bestMatchId = null;
                 let highestSimilarity = 0;
 
@@ -523,6 +537,10 @@ async function executeAutonomousLoop(text, iteration = 1) {
                     nodeIds.push(bestMatchId);
                     const matchedWord = reverseDictionary.get(bestMatchId);
                     mappedMsg += `[Mapped '${word}' -> '${matchedWord}'] `;
+                    
+                    if (!researchedConcepts.has(matchedWord) && !unresolvableConcepts.has(matchedWord)) {
+                        unknownConcepts.push(matchedWord);
+                    }
                 } else {
                     unknownConcepts.push(word);
                 }
@@ -546,6 +564,8 @@ async function executeAutonomousLoop(text, iteration = 1) {
             if (isFinancialQuery) {
                 try {
                     const coinRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(concept)}&vs_currencies=usd&include_24hr_change=true`);
+                    if (epoch !== currentEpoch) return;
+                    
                     if (coinRes.ok) {
                         const data = await coinRes.json();
                         if (data[concept]) {
@@ -562,6 +582,8 @@ async function executeAutonomousLoop(text, iteration = 1) {
 
             try {
                 const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(concept)}`);
+                if (epoch !== currentEpoch) return;
+                
                 if (res.ok) {
                     const data = await res.json();
                     if (data.type === 'standard' && data.extract) {
@@ -573,12 +595,13 @@ async function executeAutonomousLoop(text, iteration = 1) {
 
             if (dataFound) {
                 postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP]: Data successfully acquired for '${concept}'. Metabolizing into Spiking Neural Network...` });
+                researchedConcepts.add(concept);
                 pendingQuery = { type: "AGI_CONTINUE", text: text, iteration: iteration };
                 return processText(ingestedText);
             } else {
                 postMessage({ type: 'AION_RESPONSE', text: `[AGI LOOP]: Failed to acquire external data for '${concept}'. Marking as unresolvable entropy.` });
                 unresolvableConcepts.add(concept);
-                return setTimeout(() => executeAutonomousLoop(text, iteration), 500);
+                return loopTimer = setTimeout(() => executeAutonomousLoop(text, iteration), 500);
             }
         }
 
@@ -942,7 +965,7 @@ async function executeAutonomousLoop(text, iteration = 1) {
         } else {
             dreamCycle();
         }
-        setTimeout(() => executeAutonomousLoop(text, iteration + 1), 1000);
+        loopTimer = setTimeout(() => executeAutonomousLoop(text, iteration + 1), 1000);
 }
 
 self.onmessage = function(e) {
@@ -983,8 +1006,13 @@ self.onmessage = function(e) {
    else if (type === 'RESET_BRAIN') {
         if (!isReady) return;
 
+        currentEpoch++;
         // 1. KILL THE GHOSTS: Stop all background saves and metabolism
         clearTimeout(idleTimer);
+        clearTimeout(loopTimer);
+        isThinking = false;
+        isIdle = true;
+        pendingQuery = null;
         isProcessingQueue = false;
         wordQueue = [];
         recentNodes = [];
@@ -1004,6 +1032,7 @@ self.onmessage = function(e) {
         initialQueueSize = 0;
         conversationalMemory = [];
         unresolvableConcepts.clear();
+        researchedConcepts.clear();
         quantitativeMemory.clear();
 
         const tx = db.transaction('memory', 'readwrite');
@@ -1083,7 +1112,7 @@ self.onmessage = function(e) {
                 let d = dsts[ptr + j];
                 if (targetIds.has(d)) {
                     let w = weights[ptr + j];
-                    if (Math.abs(w) > 0.5) {
+                    if (Math.abs(w) > 0.1) {
                         visualEdges.push({ source: reverseDictionary.get(id), target: reverseDictionary.get(d), weight: w });
                     }
                 }

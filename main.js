@@ -15,6 +15,9 @@ let nodes = [];
 let actualEdges = []; // Tracks actual SNN physics edges
 const nodeRadius = 3;
 const connectionDistance = 150;
+let offsetX = 0;
+let offsetY = 0;
+let scale = 1;
 
 function resizeCanvas() {
     canvas.width = canvas.parentElement.clientWidth;
@@ -51,6 +54,10 @@ function animateTopology() {
     ctx.fillStyle = 'rgba(10, 10, 10, 0.2)'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.15)'; // Neon Green Lines
     ctx.lineWidth = 1;
 
@@ -81,24 +88,25 @@ function animateTopology() {
 
             // Semantic Gravity (Pull Excitatory, Push Inhibitory)
             if (edge.weight > 0 && distance > 50) {
-                n1.vx += dx * 0.00005 * Math.min(10, edge.weight);
-                n1.vy += dy * 0.00005 * Math.min(10, edge.weight);
-                n2.vx -= dx * 0.00005 * Math.min(10, edge.weight);
-                n2.vy -= dy * 0.00005 * Math.min(10, edge.weight);
+                n1.vx -= dx * 0.00005 * Math.min(10, edge.weight);
+                n1.vy -= dy * 0.00005 * Math.min(10, edge.weight);
+                n2.vx += dx * 0.00005 * Math.min(10, edge.weight);
+                n2.vy += dy * 0.00005 * Math.min(10, edge.weight);
             } else if (edge.weight < 0 && distance < 300) {
-                n1.vx -= dx * 0.0001 * Math.min(10, Math.abs(edge.weight));
-                n1.vy -= dy * 0.0001 * Math.min(10, Math.abs(edge.weight));
-                n2.vx += dx * 0.0001 * Math.min(10, Math.abs(edge.weight));
-                n2.vy += dy * 0.0001 * Math.min(10, Math.abs(edge.weight));
+                n1.vx += dx * 0.0001 * Math.min(10, Math.abs(edge.weight));
+                n1.vy += dy * 0.0001 * Math.min(10, Math.abs(edge.weight));
+                n2.vx -= dx * 0.0001 * Math.min(10, Math.abs(edge.weight));
+                n2.vy -= dy * 0.0001 * Math.min(10, Math.abs(edge.weight));
             }
 
             // Draw Excitatory (Green) and Inhibitory (Red)
+            let alpha = Math.min(0.9, 0.25 + (Math.abs(edge.weight) / 15));
             if (edge.weight > 0) {
-                ctx.strokeStyle = `rgba(0, 255, 0, ${Math.min(0.6, edge.weight / 20)})`;
+                ctx.strokeStyle = `rgba(0, 255, 0, ${alpha})`;
             } else {
-                ctx.strokeStyle = `rgba(255, 0, 0, ${Math.min(0.6, Math.abs(edge.weight) / 20)})`;
+                ctx.strokeStyle = `rgba(255, 0, 0, ${alpha})`;
             }
-            ctx.lineWidth = Math.min(3, Math.max(0.5, Math.abs(edge.weight) / 10));
+            ctx.lineWidth = Math.min(4, Math.max(1, Math.abs(edge.weight) / 8));
 
             // Override for queried connections
             if (n1.isQueried || n2.isQueried) {
@@ -133,6 +141,37 @@ function animateTopology() {
         // Reset shadow for next items
         ctx.shadowBlur = 0;
     }
+    
+    ctx.restore();
+
+    // Draw HUD Legend
+    ctx.fillStyle = 'rgba(0, 20, 0, 0.85)';
+    const legendY = Math.max(10, canvas.height - 140);
+    ctx.fillRect(10, legendY, 220, 120);
+    ctx.strokeStyle = '#0f0';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(10, legendY, 220, 120);
+
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#0f0';
+    ctx.fillText("VISUAL CORTEX LEGEND", 20, legendY + 20);
+    
+    ctx.font = '11px monospace';
+    ctx.fillStyle = '#00ff00';
+    ctx.beginPath(); ctx.arc(25, legendY + 40, nodeRadius, 0, Math.PI*2); ctx.fill();
+    ctx.fillText("Metabolized Concept", 40, legendY + 44);
+
+    ctx.fillStyle = '#00ccff';
+    ctx.beginPath(); ctx.arc(25, legendY + 60, nodeRadius * 2, 0, Math.PI*2); ctx.fill();
+    ctx.fillText("Queried (Conscious)", 40, legendY + 64);
+
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(15, legendY + 80); ctx.lineTo(35, legendY + 80); ctx.stroke();
+    ctx.fillStyle = '#0f0'; ctx.fillText("Excitatory Bond (Pull)", 40, legendY + 84);
+
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(15, legendY + 100); ctx.lineTo(35, legendY + 100); ctx.stroke();
+    ctx.fillText("Inhibitory Bond (Push)", 40, legendY + 104);
 
     requestAnimationFrame(animateTopology);
 }
@@ -299,5 +338,87 @@ resetBtn.addEventListener('click', () => {
     worker.postMessage({ type: 'RESET_BRAIN' });
 });
 
+// 5. Canvas Zoom, Pan, and Click Controls
+let isDraggingCanvas = false;
+let hasDraggedCanvas = false;
+let dragStartX = 0, dragStartY = 0;
+
+canvas.addEventListener('mousedown', (e) => {
+    isDraggingCanvas = true;
+    hasDraggedCanvas = false;
+    dragStartX = e.clientX - offsetX;
+    dragStartY = e.clientY - offsetY;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (isDraggingCanvas) {
+        offsetX = e.clientX - dragStartX;
+        offsetY = e.clientY - dragStartY;
+        hasDraggedCanvas = true;
+    }
+});
+
+canvas.addEventListener('mouseup', () => isDraggingCanvas = false);
+canvas.addEventListener('mouseleave', () => isDraggingCanvas = false);
+
+canvas.addEventListener('click', (e) => {
+    if (hasDraggedCanvas) return; // Ignore click if panning
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left - offsetX) / scale;
+    const mouseY = (e.clientY - rect.top - offsetY) / scale;
+
+    for (let i = 0; i < nodes.length; i++) {
+        let n = nodes[i];
+        let dx = mouseX - n.x;
+        let dy = mouseY - n.y;
+        if (Math.sqrt(dx * dx + dy * dy) < nodeRadius * 4) {
+            chatInput.value = `what is ${n.word}?`;
+            chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+            break;
+        }
+    }
+});
+
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomIntensity = 0.1;
+    const wheel = e.deltaY < 0 ? 1 : -1;
+    const zoomFactor = Math.exp(wheel * zoomIntensity);
+    
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    offsetX = mouseX - (mouseX - offsetX) * zoomFactor;
+    offsetY = mouseY - (mouseY - offsetY) * zoomFactor;
+    scale *= zoomFactor;
+}, { passive: false });
+
+// 6. Focus Mode (Hide UI)
+let isUiHidden = false;
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        isUiHidden = !isUiHidden;
+        const elements = [chatBox, chatInput, fileUpload, resetBtn];
+        
+        elements.forEach(el => {
+            if (!el) return;
+            
+            // Find the highest parent container of the UI element that does NOT contain the canvas
+            let target = el;
+            let current = el.parentElement;
+            while (current && current !== document.body && current !== document.documentElement) {
+                if (current.contains(canvas)) break;
+                target = current;
+                current = current.parentElement;
+            }
+            
+            target.style.transition = 'opacity 0.3s ease';
+            target.style.opacity = isUiHidden ? '0.1' : '1';
+            target.style.pointerEvents = isUiHidden ? 'none' : 'auto';
+        });
+    }
+});
+
 // Initial Boot Sequence Log
-appendMessage('AION_SYS', 'Matrix initializing...');
+appendMessage('AION_SYS', 'Matrix initializing... Press [ESC] to toggle UI visibility and view the full Visual Cortex.');
